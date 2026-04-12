@@ -1,62 +1,94 @@
 # Nodus Protocol
 
-> **"You cannot govern what you cannot identify."**
+**Governance specification for Digital Workers** — identity, delegation, mandate, audit, emergency control, and verifiable human intervention.
 
-The Nodus Protocol defines a minimal set of standards for the **identity, delegation, governance, verifiable human intervention, and audit of Digital Workers** in enterprise environments.
+[![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+[![Status: Release Candidate](https://img.shields.io/badge/Status-Release%20Candidate-green)](SPEC.md)
+[![Version: 0.2](https://img.shields.io/badge/Version-0.2-blue)](CHANGELOG.md)
 
-## The Problem
+## What is the Nodus Protocol?
 
-Companies are incorporating AI agents into their daily operations at scale. These agents make decisions, execute actions, access sensitive data, sign documents, and manage money.
+The Nodus Protocol defines the **minimum infrastructure** for a digital workforce to be governed, audited, and trusted. It answers:
 
-But no executive, auditor, or regulator can answer the most basic questions:
+- *Who is this Digital Worker, and who authorised them?* → **Identity + Delegation**
+- *What are they allowed to do?* → **Mandates**
+- *What did they actually do?* → **Audit Log**
+- *Can a human stop them immediately?* → **Emergency Controls**
+- *Can humans from other companies authorise DW actions?* → **Cross-Enterprise HITL**
 
-*Who made this decision? Did they have the authority to do so? Who authorized them? When? And how can it be stopped?*
+> *"You cannot govern what you cannot identify."*
 
-The Nodus Protocol is the answer.
+## Built on Nostr
 
-## What It Is
+The protocol uses Nostr NIPs as its cryptographic governance layer. Nostr events are immutable, verifiable by any third party, and relay-agnostic. The governance layer uses kinds 34000–34010 (NIP-33 parameterized replaceable events).
 
-A **transport-agnostic governance layer** for digital workforces:
+## Status
 
-- 🔑 **Cryptographic identity** for every Digital Worker (DW)
-- 📋 **Signed mandates** defining what each DW can and cannot do
-- 🔗 **Verifiable delegation** from human to agent
-- 📜 **Immutable audit log** of every significant action
-- 🚨 **Panic button** — revoke any DW in seconds
-- 🏢 **Federation** — cross-enterprise DW collaboration with verified identity
+| Version | Status | Date |
+|---------|--------|------|
+| v0.1 | Internal Draft | March 2026 |
+| **v0.2** | **Release Candidate** | **April 2026** |
 
-## The 4 Layers
+The reference implementation (**Nodus OS**) implements all v0.2 milestones (M0–M13) behind feature flags. All flags default to `false` — the v1 system remains untouched.
 
-| Layer | Protocol | Role |
-|-------|----------|------|
-| Cryptographic governance | Nostr (NIPs 01/26/42/44/46/59/89/90) | Identity, delegation, audit, HITL |
-| Synchronous A2A | Google A2A (JSON-RPC/HTTP + SSE) | Direct agent-to-agent calls |
-| Persistent sessions | ACP | Multi-turn orchestration |
-| Agent↔Tools | MCP | Governed access to external systems |
+## Quick Overview
 
-## Read the Specification
+### Protocol Kinds
 
-→ [SPEC.md](./SPEC.md) — Full technical specification v0.1
+| Range | Layer | Purpose |
+|-------|-------|---------|
+| 10001–10006 | Session | DW↔Human chat, HITL, streaming |
+| 10010–10013 | A2A | DW↔DW direct delegation (v0.2) |
+| 10020–10021 | Async HITL | Inbox items (crons, graphs) |
+| 34000–34010 | Governance | Identity, mandate, audit, emergency |
 
-## Key Kinds (Nostr vocabulary)
+### Key Features
 
-| Kind | Name | Description |
-|------|------|-------------|
-| `34000` | `nodus:dw-profile` | Digital Worker identity and capabilities |
-| `34001` | `nodus:org-relation` | Organizational graph arcs |
-| `34002` | `nodus:policy` | DW mandate — immutable |
-| `34003` | `nodus:audit-event` | Audit log — append-only |
-| `34004` | `nodus:mcp-server-profile` | Certified MCP Server identity |
-| `34005` | `nodus:emergency-stop` | Panic button |
+- **Cryptographic identity** for every Digital Worker (kind:34000)
+- **Immutable mandates** defining exactly what each DW can do (kind:34002)
+- **Permanent audit log** for every DW action (kind:34003)
+- **Constitutional HITL** — human approvals are cryptographic signatures (kind:10004)
+- **Emergency stop** — halt all DWs in < 30 seconds (kind:34005)
+- **Policy Relay** — the DW's nsec never leaves the relay (NIP-46 variant)
+- **Cross-enterprise** — DWs from company A can work for company B with full governance (v0.2)
+- **Verifiable contracts** — any third party can verify DW authority without trusting Nodus (v0.2)
+
+## Read the Spec
+
+| Document | Description |
+|----------|-------------|
+| [SPEC.md](SPEC.md) | Full specification v0.2 |
+| [KINDS.md](KINDS.md) | Event kinds reference — all 16 kinds with JSON examples |
+| [FLOWS.md](FLOWS.md) | Protocol flows — 8 flows with sequence diagrams |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
 
 ## Reference Implementation
 
-[Nodus OS](https://nodusos.com) is the first certified implementation of the Nodus Protocol.
+The reference implementation is **Nodus OS** (private repository: `github.com/nodus-factory/nodus-os-adk`). All milestones M0–M13 are implemented additively behind feature flags.
+
+### Milestone Status
+
+| Milestone | Description | Status |
+|-----------|-------------|--------|
+| M0 | DW & Human Identities | ✅ Implemented |
+| M1 | Mandates | ✅ Implemented |
+| M2 | Audit Log | ✅ Implemented |
+| M3 | NIP-26 Delegation | ✅ Implemented |
+| M4 | Constitutional HITL | ✅ Implemented |
+| M5 | Emergency Stop | ✅ Implemented |
+| M6 | Room UX + Inbox | ✅ Implemented |
+| M7 | MCP Governance | ✅ Implemented |
+| M8 | Policy Relay | ✅ Implemented |
+| M9 | A2A Nostr-Native | ✅ Implemented (v0.2) |
+| M10 | Multi-Relay Federation | ✅ Implemented (v0.2) |
+| M11 | Public DW Marketplace | ✅ Implemented (v0.2) |
+| M12 | Cross-Enterprise HITL | ✅ Implemented (v0.2) |
+| M13 | Verifiable Contracts | ✅ Implemented (v0.2) |
 
 ## License
 
-[Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE)
+[Creative Commons Attribution 4.0 International](LICENSE)
 
 ---
 
-*Nodus Factory · March 2026*
+*Nodus Factory · April 2026*
