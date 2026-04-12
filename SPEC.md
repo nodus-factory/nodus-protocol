@@ -1,68 +1,64 @@
-# Nodus Protocol — Specification v0.2
+# Nodus Protocol
 
-> **Status:** Release Candidate — Reference Implementation Available  
-> **Authors:** Quirze Salomó · Nodus Factory  
+> **Status:** First Public Release  
+> **Authors:** Nodus Protocol Working Group  
+> **Contact:** protocol@nodus.social  
 > **Date:** April 2026  
 > **License:** Creative Commons Attribution 4.0 International (CC BY 4.0)  
-> **Reference Implementation:** github.com/nodus-factory/nodus-os-adk (private)  
-> **Previous version:** v0.1 (March 2026) — internal draft
+> **Canonical URL:** https://nodus.social/protocol
 
 ---
 
 ## Abstract
 
-The Nodus Protocol defines a minimal set of standards for the **identity, delegation, governance, verifiable human intervention, and audit of Digital Workers** in enterprise environments.
+The Nodus Protocol defines a minimal set of standards for the **identity, delegation, governance, verifiable human intervention, and audit of Digital Workers** in enterprise and civic environments.
 
 The protocol is **transport-agnostic**: it does not impose a single communication channel between agents, but rather a common layer of action legitimacy. A Digital Worker can communicate over A2A, ACP, HTTP, queues, or Nostr — but when it acts, the Protocol ensures that anyone can answer:
 
-*Who performed this action? Did they have the authority to do so? Who authorized them? When? On what basis? And how can it be stopped?*
+*Who performed this action? Did they have the authority to do so? Who authorised them? When? On what basis? And how can it be stopped?*
 
 The Nodus Protocol is not a platform. It is not a product. It is the minimum infrastructure needed for a digital workforce to be governed, audited, and trusted — just as today's human workforce is.
-
-**v0.2 extends v0.1 with:** A2A Nostr-native communication (kinds 10010–10013), multi-relay federation, a public DW marketplace, cross-enterprise Human-in-the-Loop, and verifiable employment contracts. All features are implemented in the Reference Implementation behind feature flags that default to `false`.
 
 ---
 
 ## Table of Contents
 
-1. [The World Ahead](#1-the-world-ahead)
+1. [The Problem](#1-the-problem)
 2. [Motivation](#2-motivation)
 3. [Design Principles](#3-design-principles)
 4. [Core Concepts](#4-core-concepts)
 5. [Technical Specification](#5-technical-specification)
    - 5.1 Nostr NIPs as Governance Foundation
-   - 5.2 Nodus Protocol Kinds (Session + Governance)
+   - 5.2 Nodus Protocol Kinds
    - 5.3 Synchronous A2A Transport
    - 5.4 Persistent ACP Sessions
    - 5.5 MCP under Protocol Governance
-   - 5.6 Nodus Policy Relay
+   - 5.6 Policy Relay
    - 5.7 Enterprise Control over Digital Workers
    - 5.8 Panic Button and Revocation
    - 5.9 Constitutional Separation: Human / Digital Worker
    - 5.10 Graduated Governance Model
    - 5.11 Federation and Cross-Enterprise Communication
-   - 5.12 A2A Nostr-Native Protocol (v0.2)
-   - 5.13 Multi-Relay Federation (v0.2)
-   - 5.14 Public DW Marketplace (v0.2)
-   - 5.15 Cross-Enterprise HITL (v0.2)
-   - 5.16 Verifiable Employment Contracts (v0.2)
-6. [Reference Implementation](#6-reference-implementation)
-   - 6.1 Reference Implementation Status
-   - 6.2 Activation Flags
-7. [Conformance and Certification](#7-conformance-and-certification)
+   - 5.12 A2A Nostr-Native
+   - 5.13 Multi-Relay Federation
+   - 5.14 Public DW Discovery
+   - 5.15 Cross-Enterprise HITL
+   - 5.16 Verifiable Employment Contracts
+6. [Conformance and Certification](#6-conformance-and-certification)
+7. [Certified Implementations](#7-certified-implementations)
 8. [Appendix](#8-appendix)
 
 ---
 
-## 1. The World Ahead
+## 1. The Problem
 
-Companies are about to incorporate hundreds — and soon thousands — of artificial intelligence agents into their daily operations. These agents will make decisions, execute actions, access sensitive data, sign documents, manage money, hire suppliers, and interact with customers.
+Companies are incorporating hundreds — and soon thousands — of artificial intelligence agents into their daily operations. These agents will make decisions, execute actions, access sensitive data, sign documents, manage money, hire suppliers, and interact with customers.
 
 Some of these agents will have been created by the company itself. Others by a partner. Others contracted as a service. Some will be built on GPT. Others on Claude. Others on local models. Some will communicate with each other. Others will operate alone.
 
 And no one — no executive, no auditor, no regulator — will be able to answer the most basic questions:
 
-*Who made this decision? Did they have the authority to do so? Who authorized them? When? On what basis?*
+*Who made this decision? Did they have the authority to do so? Who authorised them? When? On what basis?*
 
 This is already happening today, at small scale. In two years, it will be the central problem of corporate governance.
 
@@ -72,57 +68,56 @@ The Nodus Protocol is the answer to this problem.
 
 ## 2. Motivation
 
-> *Voice of Quirze Salomó, founder*
+Between 2019 and 2026, the [Democracy4All](https://www.democracy4all.barcelona/) conference series brought together technologists, policymakers, and researchers in Barcelona to address a recurring question: *how can digital systems be governed in a way that is transparent, accountable, and verifiable by design?*
 
-I have been talking about AI governance for two or three years. I have always believed that the digital identity of agents — of Digital Workers — is the key to governing all of this.
+Over seven editions, three convergences became clear:
 
-Blockchain technology can contribute very interesting things to the world of AI governance and control. But in the enterprise world, that piece was missing.
+**Convergence 1 — Identity is governance.**
+You cannot hold an actor accountable without a verifiable, independent identity that survives the failure of any platform.
 
-The critical moment came when I saw that Digital Workers were starting to gain very serious power, that the acceleration was real, and that moving forward without governance would be chaos — for companies and for society.
+**Convergence 2 — Immutability enables trust.**
+A governance layer that can be modified or deleted after the fact offers no real guarantee. Accountability requires append-only records.
 
-The Nodus Protocol was born from a simple conviction:
+**Convergence 3 — Authority must be cryptographic, not contractual.**
+Contracts exist on paper. Cryptographic delegation exists in mathematics. The former can be disputed; the latter can only be verified.
 
-> **"You cannot govern what you cannot identify."**
+The Nodus Protocol is the formal articulation of these three principles, applied to the emerging governance challenge of autonomous AI agents in enterprise and civic environments.
 
-And you cannot identify anything that does not have a verifiable, independent, cryptographic identity.
+> *"You cannot govern what you cannot identify."*
 
-This is a protocol designed for companies and institutions. But the problem it solves is a general social problem.
+See [MOTIVATION.md](MOTIVATION.md) for the full origin story.
 
 ---
 
 ## 3. Design Principles
 
-These principles are non-negotiable. An implementation that violates them is not compatible with the Nodus Protocol.
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119).
+
+These principles are non-negotiable. An implementation that violates them is not conformant with the Nodus Protocol.
 
 ### P1 — Clear and Verifiable Identity
 
-Every agent operating under the Nodus Protocol must have a unique cryptographic identity, independent of any central platform. Who is who must always be verifiable without consulting any third-party server.
+Every Digital Worker operating under the Nodus Protocol MUST have a unique cryptographic identity, independent of any central platform. Identity MUST be verifiable without consulting any third-party server.
 
 ### P2 — Native Interoperability
 
-No implementation may create closed silos. Any certified Digital Worker must be able to communicate with any other certified DW, and with any authorized human. The protocol defines the common language; no implementation may speak an incompatible dialect.
+No implementation MAY create closed silos. Any certified Digital Worker MUST be capable of communicating with any other certified DW, and with any authorised human. The protocol defines the common language; no implementation MAY speak an incompatible dialect.
 
-### P3 — Sufficient Decentralization
+### P3 — Sufficient Decentralisation
 
-The protocol must not depend on a central server, a single company, or a single jurisdiction. It must be able to survive the failure of any node, including Nodus Factory itself. No single entity may have the power to shut down the network.
+The protocol MUST NOT depend on a central server, a single organisation, or a single jurisdiction. It MUST be capable of surviving the failure of any node. No single entity MAY have the power to shut down the network.
 
 ### P4 — Immutable Auditability
 
-Every significant action by a Digital Worker must be recorded in a way that cannot be modified or deleted. Not for surveillance, but for accountability. The audit log is append-only; no one can erase the trace of a past action.
+Every significant action by a Digital Worker MUST be recorded in a way that cannot be modified or deleted. The audit log is append-only; no entity MAY erase the trace of a past action.
 
-### P5 — Balance Between Privacy and Transparency
+### P5 — Selective Governed Transparency
 
-The protocol must allow a company to internally audit all actions of its Digital Workers, without those actions being visible to unauthorized third parties. At the same time, it must ensure that certain facts — that an action occurred, that an agent had authority to perform it — can be verified externally without revealing the content.
-
-This is neither total opacity nor total transparency. It is **selective governed transparency**.
+The protocol MUST allow an organisation to internally audit all actions of its Digital Workers, without those actions being visible to unauthorised third parties. At the same time, it MUST ensure that certain facts — that an action occurred, that an agent had authority to perform it — can be verified externally without revealing the content.
 
 ### P6 — Ontological Separation: Human / Digital Worker
 
-A human and a Digital Worker are not the same type of entity. Ever. A DW cannot escalate its privileges to the level of a human. A human cannot be impersonated by a DW. This separation is structural, not a configuration option, and cannot be bypassed by any implementation.
-
-### P7 — Parallel and Additive (v0.2)
-
-No component of the protocol may modify, degrade, or interfere with existing v1 systems. All protocol features run in parallel, protected by feature flags that default to `false`. The existing HTTP transport and session system is never touched.
+A human and a Digital Worker are not the same type of entity. A DW MUST NOT escalate its privileges to the level of a human. A human MUST NOT be impersonated by a DW. This separation is structural and MUST NOT be configurable.
 
 ---
 
@@ -130,16 +125,16 @@ No component of the protocol may modify, degrade, or interfere with existing v1 
 
 ### 4.1 Digital Worker (DW)
 
-A Digital Worker is an artificial intelligence agent that acts on behalf of an organization or person, with an **explicit mandate and defined limits**.
+A Digital Worker is an artificial intelligence agent that acts on behalf of an organisation or person, with an **explicit mandate and defined limits**.
 
 A DW is not a script. It is not a chatbot. It is an entity with:
 - Its own verifiable identity
-- A clear human or organizational owner
+- A clear human or organisational owner
 - A declared set of capabilities
 - A set of limits it cannot exceed
 - An auditable history of actions
 
-The fundamental difference between a DW and a generic AI agent is **traceable accountability**. It is always known who created the DW, who authorized it to act, and what it has done.
+The fundamental difference between a DW and a generic AI agent is **traceable accountability**: it is always known who created the DW, who authorised it to act, and what it has done.
 
 ### 4.2 Cryptographic Identity
 
@@ -148,13 +143,13 @@ Each entity operating under the Nodus Protocol — human or digital — has a cr
 - **`npub`** (public key) — public identifier, visible to everyone on the network
 - **`nsec`** (private key) — never shared, controlled exclusively by the owner
 
-This identity is **self-sovereign**: it does not depend on any central server. A DW continues to have verifiable identity even if Nodus Factory ceases to exist.
+This identity is **self-sovereign**: it does not depend on any central server. A DW retains a verifiable identity even if its operator ceases to exist.
 
 > Technical basis: NIP-01 of the Nostr protocol. All events use BIP-340 Schnorr signatures over secp256k1.
 
 ### 4.3 Owner
 
-Every Digital Worker has an owner: the person or organization that created it and is responsible for it. The owner–DW relationship is cryptographically verifiable.
+Every Digital Worker MUST have an owner: the person or organisation that created it and is responsible for it. The owner–DW relationship MUST be cryptographically verifiable.
 
 An owner can:
 - Create and revoke mandates
@@ -167,21 +162,21 @@ An owner can:
 
 The mandate is the document that defines **what a Digital Worker can and cannot do**. It is the contract between the owner and the DW. It includes:
 
-- Authorized capabilities (which actions it may execute)
+- Authorised capabilities (which actions it may execute)
 - Explicit limits (what it may never do)
-- HITL-required actions (which require live human approval)
-- Auto-approved actions (which bypass HITL)
+- Actions requiring live human approval (HITL-required)
+- Auto-approved actions
 - Scope (over which data and systems it may act)
 - Validity period (from when to when it is valid)
 
-The mandate is **immutable once signed** by the owner. If it needs to change, a new version must be signed. Relays must refuse DELETE and UPDATE on kind:34002.
+The mandate is **immutable once signed** by the owner. If it needs to change, a new version MUST be signed. Relays MUST refuse DELETE and UPDATE on kind:34002.
 
 ### 4.5 Delegation (NIP-26)
 
-Delegation is the mechanism by which an authorized human transfers authority to a Digital Worker to act on their behalf. When a DW acts with delegation:
+Delegation is the mechanism by which an authorised human transfers authority to a Digital Worker to act on their behalf. When a DW acts with delegation:
 
 - Its action carries the DW's signature (technical identity)
-- And the cryptographic proof that the owner authorized this action (delegated authority)
+- And the cryptographic proof that the owner authorised this action (delegated authority)
 
 Any third party can verify both without consulting any central server.
 
@@ -189,8 +184,8 @@ Any third party can verify both without consulting any central server.
 
 Digital Workers communicate with each other. The Nodus Protocol supports two primary A2A patterns:
 
-- **Synchronous A2A HTTP v1** (Google A2A over HTTP/JSON-RPC) — when an immediate response is needed, legacy transport
-- **A2A Nostr-Native v0.2** (kinds 10010–10013) — direct DW-to-DW delegation via the relay, no HTTP intermediary
+- **Synchronous A2A** — when an immediate response is needed
+- **A2A Nostr-Native** (kinds 10010–10013) — direct DW-to-DW delegation via the relay, no HTTP intermediary
 
 The protocol does not impose a single transport. What it imposes is that every governed interaction can demonstrate: who is acting, with what authority, under what mandate, and what trace it leaves.
 
@@ -199,8 +194,8 @@ The protocol does not impose a single transport. What it imposes is that every g
 Certain actions require real human intervention. The Nodus Protocol distinguishes between:
 
 - **Operational HITL:** the human receives a notification and approves via any surface
-- **Constitutional HITL:** when the human exercises authority, this act is materialized on the Nostr layer as a verifiable cryptographic proof (kind:10004, signed by the human's keypair)
-- **Cross-Enterprise HITL (v0.2):** a human from another company can approve DW actions using their own keypair and relay
+- **Constitutional HITL:** when the human exercises authority, this act is materialised on the Nostr layer as a verifiable cryptographic proof (kind:10004, signed by the human's keypair)
+- **Cross-Enterprise HITL:** a human from another organisation can approve DW actions using their own keypair and relay
 
 > Ordinary human↔agent conversation may pass through any channel. But when a human exercises authority, the Protocol records it permanently.
 
@@ -214,7 +209,7 @@ The audit log is the immutable record of all significant actions by a Digital Wo
 - What was done (hash of the action and its result)
 - In the context of which interaction (session and mandate references)
 
-The audit log is **append-only**: no entry can be modified or deleted. Not by the DW's owner. Not by Nodus. Not by anyone.
+The audit log is **append-only**: no entry can be modified or deleted. Not by the DW's owner. Not by anyone.
 
 ---
 
@@ -224,11 +219,11 @@ The Nodus Protocol is implemented over four complementary communication layers:
 
 | Layer | Protocol | Role | When to use |
 |-------|----------|------|-------------|
-| **Cryptographic governance** | Nostr (NIPs 01/16/26/33/42/44/46/59/89) | Identity, delegation, revocation, immutable audit, constitutional HITL | When legitimizing, revoking, auditing, or involving a human with verifiable authority |
-| **A2A Nostr-native (v0.2)** | Nostr kinds 10010–10013 | DW↔DW direct delegation via relay | Cross-DW coordination without HTTP server dependency |
-| **Synchronous A2A (v1)** | Google A2A (JSON-RPC/HTTP + SSE) | Direct agent→agent synchronous calls | DW executes atomic task with blocking response |
-| **Persistent sessions** | ACP (Agent Communication Protocol) | Stateful sessions, streaming, long context, multi-turn orchestration | LLM streaming between agents, long conversational sessions |
-| **Agent↔Tools** | MCP (Model Context Protocol) | Access to tools, APIs, databases, external systems | DW accesses calendar, CRM, email, files, APIs |
+| **Cryptographic governance** | Nostr (NIPs 01/16/26/33/42/44/46/59/89) | Identity, delegation, revocation, immutable audit, constitutional HITL | When legitimising, revoking, auditing, or involving a human with verifiable authority |
+| **A2A Nostr-native** | Nostr kinds 10010–10013 | DW↔DW direct delegation via relay | Cross-DW coordination without HTTP server dependency |
+| **Synchronous A2A** | JSON-RPC/HTTP | Direct agent→agent synchronous calls | DW executes atomic task with blocking response |
+| **Persistent sessions** | ACP | Stateful sessions, streaming, long context, multi-turn orchestration | Streaming between agents, long conversational sessions |
+| **Agent↔Tools** | MCP | Access to tools, APIs, databases, external systems | DW accesses calendar, CRM, email, files, APIs |
 
 **The Nodus Protocol is transport-agnostic but rooted in Nostr for governance.** Agents may communicate over many channels, but when an action requires protocol legitimacy, that legitimacy lives in the Nostr cryptographic layer.
 
@@ -238,84 +233,67 @@ The Nodus Protocol is implemented over four complementary communication layers:
 
 The protocol requires support for the following NIPs:
 
-| NIP | Name | Role in Nodus | Status |
-|-----|------|--------------|--------|
-| NIP-01 | Basic protocol | Foundation. Event signing, basic kinds. Mandatory. | ✅ Implemented |
-| NIP-16 | Event Treatment | Kinds 10000–19999 replaceable semantics | ✅ Implemented |
-| NIP-19 | bech32-encoded entities | `nsec1…`, `npub1…` for all keys | ✅ Implemented |
-| NIP-26 | Delegated event signing | DWs sign on behalf of the owner. Verifiable authority proofs. | ✅ Implemented |
-| NIP-29 | Relay-based Groups | Work rooms (M6) | ✅ Implemented |
-| NIP-33 | Parameterized Replaceable Events | All kinds 34000–34010 governance layer | ✅ Implemented |
-| NIP-42 | Relay AUTH | Private relay per company. Only authenticated identities connect. | ⚠️ Partial |
-| NIP-44 | Versioned Encryption | Encrypted P2P communication between agents (future) | 📋 Referenced |
-| NIP-46 | Nostr Connect / Remote Signing | Technical basis for the Policy Relay (M8) | ✅ Implemented (variant) |
-| NIP-59 | Gift Wrap | Maximum privacy for sensitive HITL decisions | 📋 Referenced |
-| NIP-89 | App Handler Info | Agent Cards and discovery on the relay | ✅ Partial |
-| NIP-90 | Data Vending Machines | Async A2A decoupled in time (future) | 📋 Referenced |
-
-**NIP-01 implementation:** The reference implementation uses a pure-Python BIP-340 Schnorr signer with no external cryptographic dependencies. All event serialisation, hashing, and signature verification is self-contained.
-
-```python
-class _NostrSigner:
-    def create_signed_event(self, kind: int, content: str, tags: list[list[str]]) -> dict:
-        created_at = int(time.time())
-        serialised = json.dumps(
-            [0, self._pubkey_hex, created_at, kind, tags, content],
-            separators=(",", ":"), ensure_ascii=False,
-        )
-        event_id_bytes = hashlib.sha256(serialised.encode("utf-8")).digest()
-        sig = _schnorr_sign(event_id_bytes, self._sk_bytes, aux_rand)
-        return {"id": event_id_bytes.hex(), "pubkey": self._pubkey_hex,
-                "created_at": created_at, "kind": kind,
-                "tags": tags, "content": content, "sig": sig.hex()}
-```
+| NIP | Name | Role in Nodus |
+|-----|------|--------------|
+| NIP-01 | Basic protocol | Foundation. Event signing, basic kinds. Mandatory. |
+| NIP-16 | Event Treatment | Kinds 10000–19999 replaceable semantics |
+| NIP-19 | bech32-encoded entities | `nsec1…`, `npub1…` for all keys |
+| NIP-26 | Delegated event signing | DWs sign on behalf of the owner. Verifiable authority proofs. |
+| NIP-29 | Relay-based Groups | Collaborative work rooms |
+| NIP-33 | Parameterized Replaceable Events | All kinds 34000–34010 governance layer |
+| NIP-42 | Relay AUTH | Private relay per organisation. Only authenticated identities connect. |
+| NIP-44 | Versioned Encryption | Encrypted P2P communication between agents |
+| NIP-46 | Nostr Connect / Remote Signing | Technical basis for the Policy Relay |
+| NIP-59 | Gift Wrap | Maximum privacy for sensitive HITL decisions |
+| NIP-89 | App Handler Info | DW discovery on the relay |
+| NIP-90 | Data Vending Machines | Async A2A decoupled in time |
 
 ---
 
-### 5.2 Nodus Protocol Kinds (Session + Governance)
+### 5.2 Nodus Protocol Kinds
 
 The Nodus Protocol defines two kind ranges. The complete reference is in [KINDS.md](KINDS.md).
 
 #### Session Layer (kinds 10001–10021)
 
-NIP-16 replaceable events. The DW uses a `since` filter to avoid processing stale messages.
+NIP-16 replaceable events. The DW MUST use a `since` filter to avoid processing stale messages.
 
-| Kind | Name | Publisher | Description | Status |
-|------|------|-----------|-------------|--------|
-| `10001` | `MESSAGE_USER` | Human | User message to a DW | ✅ v0.1 |
-| `10002` | `RESPONSE_DW` | DW | Final DW response | ✅ v0.1 |
-| `10003` | `HITL_REQUEST` | DW | Human approval request | ✅ v0.1 |
-| `10004` | `HITL_RESPONSE` | Human | Cryptographically signed human decision | ✅ v0.1 |
-| `10005` | `RESPONSE_AGENT` | Agent | Internal agent-to-agent (HTTP v1) | ✅ v0.1 |
-| `10006` | `STREAMING_CHUNK` | DW | Real-time streaming chunk | ✅ v0.1 |
-| `10010` | `A2A_REQUEST` | DW | DW-to-DW task request (Nostr-native) | ✅ v0.2 |
-| `10011` | `A2A_RESPONSE` | DW | DW-to-DW task response | ✅ v0.2 |
-| `10012` | `A2A_STREAM` | DW | DW-to-DW streaming chunk | ✅ v0.2 |
-| `10013` | `A2A_ERROR` | DW | DW-to-DW error | ✅ v0.2 |
-| `10020` | `INBOX_ITEM` | DW/Cron | Async HITL request (inbox) | ✅ v0.1 |
-| `10021` | `INBOX_RESOLVED` | Human | Async HITL resolution | ✅ v0.1 |
+| Kind | Name | Publisher | Description |
+|------|------|-----------|-------------|
+| `10001` | `MESSAGE_USER` | Human | User message to a DW |
+| `10002` | `RESPONSE_DW` | DW | Final DW response |
+| `10003` | `HITL_REQUEST` | DW | Human approval request |
+| `10004` | `HITL_RESPONSE` | Human | Cryptographically signed human decision |
+| `10005` | `RESPONSE_AGENT` | Agent | Agent-to-agent (synchronous transport) |
+| `10006` | `STREAMING_CHUNK` | DW | Real-time streaming chunk |
+| `10010` | `A2A_REQUEST` | DW | DW-to-DW task request (Nostr-native) |
+| `10011` | `A2A_RESPONSE` | DW | DW-to-DW task response |
+| `10012` | `A2A_STREAM` | DW | DW-to-DW streaming chunk |
+| `10013` | `A2A_ERROR` | DW | DW-to-DW error |
+| `10020` | `INBOX_ITEM` | DW | Async HITL request (inbox) |
+| `10021` | `INBOX_RESOLVED` | Human | Async HITL resolution |
 
 #### Governance Layer (kinds 34000–34010)
 
 NIP-33 parameterized replaceable events. The `["d", "<identifier>"]` tag defines uniqueness within pubkey+kind.
 
-| Kind | Name | `d` tag value | Mutability | Status |
-|------|------|---------------|------------|--------|
-| `34000` | `nodus:dw-profile` | `<dw_pubkey_hex>` | Replaceable | ✅ v0.1 |
-| `34001` | `nodus:org-relation` | `<owner_hex>-<dw_hex>` | Replaceable | ✅ v0.1 |
-| `34002` | `nodus:policy` | `<dw_pubkey_hex>` | **IMMUTABLE** | ✅ v0.1 |
-| `34003` | `nodus:audit-event` | `sha256(dw+session+ts_ms)` | **Append-only** | ✅ v0.1 |
-| `34004` | `nodus:mcp-server-profile` | `"nodus-mcp-gateway"` | Replaceable | ✅ v0.1 |
-| `34005` | `nodus:emergency-stop` | `<tenant_id>` | Immutable | ✅ v0.1 |
-| `34006` | `nodus:emergency-resume` | `<tenant_id>` | Immutable | ✅ v0.1 |
-| `34010` | `nodus:kyc-corp-claim` | `"kyc-<tenant_id>"` | Replaceable | ✅ v0.2 |
+| Kind | Name | `d` tag value | Mutability |
+|------|------|---------------|------------|
+| `34000` | `nodus:dw-profile` | `<dw_pubkey_hex>` | Replaceable |
+| `34001` | `nodus:org-relation` | `<owner_hex>-<dw_hex>` | Replaceable |
+| `34002` | `nodus:policy` | `<dw_pubkey_hex>` | **IMMUTABLE** |
+| `34003` | `nodus:audit-event` | `sha256(dw+session+ts_ms)` | **Append-only** |
+| `34004` | `nodus:mcp-server-profile` | `<gateway_identifier>` | Replaceable |
+| `34005` | `nodus:emergency-stop` | `<tenant_id>` | Immutable |
+| `34006` | `nodus:emergency-resume` | `<tenant_id>` | Immutable |
+| `34010` | `nodus:kyc-corp-claim` | `"kyc-<tenant_id>"` | Replaceable |
 
 > **Critical relay rules:**
 > 1. Relays MUST reject DELETE or UPDATE on kind:34002 and kind:34003
-> 2. DWs (`entity_type: "digital_worker"`) MUST NOT be permitted to sign kinds 34002, 34005
-> 3. kind:34003 `d` uniqueness enforces append-only semantics
+> 2. Entities with `entity_type: "digital_worker"` MUST NOT be permitted to sign kinds 34002, 34005
+> 3. kind:34003 `d` tag uniqueness enforces append-only semantics
 
-#### Kind 34000 — Digital Worker Profile (full structure)
+#### Kind 34000 — Digital Worker Profile
 
 ```json
 {
@@ -325,11 +303,11 @@ NIP-33 parameterized replaceable events. The `["d", "<identifier>"]` tag defines
     ["d", "<dw_pubkey_hex>"],
     ["p", "<owner_pubkey_hex>"]
   ],
-  "content": "{\"name\":\"Athena\",\"description\":\"Root orchestrator agent\",\"owner\":\"<owner_hex>\",\"tenant\":\"default\",\"entity_type\":\"digital_worker\",\"capabilities\":[\"orchestrate\",\"email\",\"calendar\"],\"limits\":[\"no_financial_without_hitl\"],\"transports\":[{\"type\":\"nostr-session\",\"relay\":\"ws://nostr-relay:7777\",\"kinds\":[10001]},{\"type\":\"a2a\",\"url\":\"https://adk.nodus.local/agents/athena/a2a\"}],\"nodus_version\":\"0.2\"}"
+  "content": "{\"name\":\"Athena\",\"description\":\"Root orchestrator agent\",\"owner\":\"<owner_hex>\",\"entity_type\":\"digital_worker\",\"capabilities\":[\"orchestrate\",\"email\",\"calendar\"],\"limits\":[\"no_financial_without_hitl\"],\"transports\":[{\"type\":\"nostr-session\",\"relay\":\"ws://relay.example\",\"kinds\":[10001]},{\"type\":\"a2a\",\"url\":\"https://agent.example/a2a\"}],\"nodus_version\":\"1.0\"}"
 }
 ```
 
-#### Kind 34002 — Policy / Mandate (full structure)
+#### Kind 34002 — Policy / Mandate
 
 ```json
 {
@@ -339,11 +317,11 @@ NIP-33 parameterized replaceable events. The `["d", "<identifier>"]` tag defines
     ["d", "<dw_pubkey_hex>"],
     ["p", "<dw_pubkey_hex>"]
   ],
-  "content": "{\"dw\":\"<dw_pubkey_hex>\",\"tenant\":\"my-tenant\",\"capabilities\":[\"send_email\",\"read_calendar\",\"orchestrate\"],\"limits\":[\"no_delete_without_confirmation\"],\"hitl_required\":[\"send_email\",\"delete_*\",\"financial_*\"],\"auto_approve\":[\"read_calendar\",\"list_memory\"],\"max_auto_cost_eur\":0,\"valid_from\":1714000000,\"valid_until\":null,\"nodus_version\":\"0.1\"}"
+  "content": "{\"dw\":\"<dw_pubkey_hex>\",\"capabilities\":[\"send_email\",\"read_calendar\",\"orchestrate\"],\"limits\":[\"no_delete_without_confirmation\"],\"hitl_required\":[\"send_email\",\"delete_*\",\"financial_*\"],\"auto_approve\":[\"read_calendar\"],\"max_auto_cost_eur\":0,\"valid_from\":1714000000,\"valid_until\":null,\"nodus_version\":\"1.0\"}"
 }
 ```
 
-#### Kind 34003 — Audit Event (full structure)
+#### Kind 34003 — Audit Event
 
 ```json
 {
@@ -354,10 +332,9 @@ NIP-33 parameterized replaceable events. The `["d", "<identifier>"]` tag defines
     ["p", "<user_pubkey_hex>"],
     ["mandate", "<kind:34002_event_id>"],
     ["session", "<session_uuid>"],
-    ["action", "agent_response"],
-    ["tenant", "<tenant_id>"]
+    ["action", "agent_response"]
   ],
-  "content": "{\"action\":\"agent_response\",\"result_hash\":\"<sha256>\",\"timestamp\":1714000010,\"dw\":\"<dw_pubkey_hex>\",\"user\":\"<user_hex>\",\"tenant\":\"default\",\"session_id\":\"<uuid>\",\"mandate_ref\":\"<event_id>\"}"
+  "content": "{\"action\":\"agent_response\",\"result_hash\":\"<sha256>\",\"timestamp\":1714000010,\"dw\":\"<dw_pubkey_hex>\",\"session_id\":\"<uuid>\",\"mandate_ref\":\"<event_id>\"}"
 }
 ```
 
@@ -365,44 +342,44 @@ NIP-33 parameterized replaceable events. The `["d", "<identifier>"]` tag defines
 
 ### 5.3 Synchronous A2A Transport
 
-Google A2A (v0.3.0, 50+ partners: Salesforce, SAP, Atlassian, PayPal...) is the emerging standard for direct agent-to-agent communication. The Nodus Protocol adopts it as the primary synchronous transport and adds the governance layer it lacks.
+The protocol supports direct agent-to-agent communication over JSON-RPC/HTTP, compatible with the emerging A2A standard (supported by Salesforce, SAP, Atlassian, PayPal, and 50+ organisations). The Nodus Protocol adds the governance layer this standard lacks.
 
-**The gap Nodus fills over Google A2A:**
+**The gap Nodus fills over plain A2A:**
 
-| Google A2A | + Nodus Protocol |
+| Plain A2A | + Nodus Protocol |
 |-----------|-----------------|
 | Agent Cards | Agent Cards + npub + signed mandate (34002) |
 | Task lifecycle | Task lifecycle + immutable audit (34003) |
 | HTTP/JSON-RPC | HTTP/JSON-RPC + cryptographic signature |
-| Auth: OpenAPI keys | Auth: NIP-26 cryptographic delegation |
+| Auth: API keys | Auth: NIP-26 cryptographic delegation |
 | No revocation | Revocation in seconds (kind 34002 revoked) |
 
-**v0.2 note:** The Nodus Protocol v0.2 introduces A2A Nostr-Native (section 5.12) as an alternative to A2A HTTP. Both transports coexist; the Nostr-native transport eliminates server intermediaries and enables cross-tenant federation.
+The Nodus Protocol also introduces A2A Nostr-Native (section 5.12) as an alternative that eliminates HTTP server intermediaries and enables cross-tenant federation.
 
 ---
 
 ### 5.4 Persistent ACP Sessions
 
-Google A2A is synchronous and stateless. The Nodus Protocol supports **ACP (Agent Communication Protocol)** for multi-turn orchestration: an orchestrating agent collaborating in a long conversation with subordinate agents, maintaining context across multiple interactions.
+The Nodus Protocol supports **ACP (Agent Communication Protocol)** for multi-turn orchestration: an orchestrating agent collaborating in a long conversation with subordinate agents, maintaining context across multiple interactions.
 
 #### When to use ACP
 
-- An orchestrating agent coordinating multiple DWs in a complex flow
-- An agent maintaining a long working session with a specialized agent
+- An orchestrating DW coordinating multiple DWs in a complex flow
+- A DW maintaining a long working session with a specialised agent
 - Workflows requiring shared context between steps
 - Streaming partial responses between agents while work is in progress
 
 #### Relationship between layers
 
 ```
-Orchestrator (ACP session)
+Orchestrator DW (ACP session)
       │
-      ├─→ DW Office   (A2A HTTP, direct call)        ← atomic task
-      ├─→ DW Business (A2A Nostr, v0.2)              ← atomic task, no HTTP
+      ├─→ DW A  (A2A synchronous, direct call)        ← atomic task
+      ├─→ DW B  (A2A Nostr-native)                    ← atomic task, no HTTP
       │
-      └─→ Sub-orchestrator (ACP session)             ← complex multi-step flow
+      └─→ Sub-orchestrator DW (ACP session)            ← complex multi-step flow
               │
-              └─→ Audit → Nostr (kind 34003)         ← immutable record
+              └─→ Audit → Nostr (kind 34003)           ← immutable record
 ```
 
 ---
@@ -417,49 +394,47 @@ MCP (Model Context Protocol, Anthropic 2024) is the emerging standard for connec
 
 #### The solution: kind 34004 — MCP Server Profile
 
-Just like Digital Workers, MCP Servers operating under the Nodus Protocol have a keypair, a registered profile (kind:34004), and an audit trail.
+MCP Servers operating under the Nodus Protocol MUST have a keypair, a registered profile (kind:34004), and an audit trail.
 
 ```json
 {
   "kind": 34004,
   "pubkey": "<mcp_gateway_pubkey_hex>",
-  "tags": [["d", "nodus-mcp-gateway"]],
-  "content": "{\"name\":\"Nodus MCP Gateway\",\"url\":\"https://mcp.nodus.local\",\"tools\":[\"calendar\",\"email\",\"drive\",\"crm\"],\"owner\":\"<owner_pubkey_hex>\",\"authorized_dws\":[\"<athena_pubkey_hex>\"],\"valid_until\":null}"
+  "tags": [["d", "<gateway_identifier>"]],
+  "content": "{\"name\":\"Example MCP Gateway\",\"url\":\"https://mcp.example.org\",\"tools\":[\"calendar\",\"email\",\"drive\"],\"owner\":\"<owner_pubkey_hex>\",\"authorized_dws\":[\"<dw_pubkey_hex>\"],\"valid_until\":null}"
 }
 ```
 
 #### Flow: DW uses an MCP tool under Nodus governance
 
 ```
-DW wants to use "calendar" from an MCP Server
+DW wants to use a tool from an MCP Server
         │
         ├─→ Check relay: does kind 34004 exist for this MCP Server?
         │       ├── No → REJECT (MCP Server not certified)
         │       └── Yes → check: is this DW in authorized_dws?
-        │                   ├── No → REJECT (not authorized)
+        │                   ├── No → REJECT (not authorised)
         │                   └── Yes → CONNECT
         │
-        ├─→ Execute MCP call (tool: "calendar", action: "create_event")
+        ├─→ Execute MCP call
         │
         └─→ Record in kind 34003 (audit)
 ```
 
 ---
 
-### 5.6 Nodus Policy Relay
-
-> **Status: fully implemented (M8) — reference implementation available**
+### 5.6 Policy Relay
 
 Standard Nostr relays distribute events but do not filter them against business policies. The **Nodus Policy Relay** solves this by turning the relay into an active **Signing Service**.
 
-#### The core principle: DW nsec keys never leave the relay
+#### The core principle: DW private keys never leave the relay
 
 ```
-v0.1 (DW has its own nsec):
-  DW pod (has nsec) ──sign──► relay ──► network
+Standard mode (DW holds its own key):
+  DW ──sign──► relay ──► network
 
-v0.2 Policy Relay (M8):
-  DW pod (no nsec) ──unsigned event──► Policy Relay ──signed event──► relay ──► network
+Policy Relay mode:
+  DW (no key) ──unsigned event──► Policy Relay ──signed event──► relay ──► network
 ```
 
 **The DW does not hold the key. It cannot sign on its own.** Without a valid signature from the Policy Relay, no other Nodus DW accepts its requests. This is **cryptographic impossibility**, not a matter of good faith.
@@ -512,65 +487,52 @@ The Policy Relay exposes an internal WebSocket endpoint. The DW sends unsigned e
 
 #### Security model
 
-| Property | v0.1 (direct nsec) | v0.2 (Policy Relay) |
-|----------|-------------------|---------------------|
-| nsec location | K8s Secret in DW pod | Policy Relay service (isolated) |
-| Pod compromise | nsec exposed | Only unsigned events exposed |
-| Mandate enforcement | Observational (log-only) | Hard enforcement (sign or reject) |
+| Property | Standard mode | Policy Relay mode |
+|----------|---------------|-------------------|
+| Key location | DW process | Policy Relay service (isolated) |
+| Process compromise | Key exposed | Only unsigned events exposed |
+| Mandate enforcement | Observational | Hard enforcement (sign or reject) |
 | Audit | kind:34003 per action | kind:34003 per action |
 
-**Configuration:**
-```bash
-# DW (no nsec, points to Policy Relay)
-NODUS_POLICY_RELAY_V1=true
-NODUS_POLICY_RELAY_URL=ws://policy-relay:8080/sign
+> Technical basis: NIP-46 (Nostr Connect / nsecbunker) — adapted for enterprise DWs with mandate enforcement semantics.
 
-# Policy Relay (holds all DW nsecs)
-NODUS_DW_NSEC_MAP='{"<dw_pubkey_hex>": "nsec1..."}'
-# or per-DW:
-POLICY_RELAY_NSEC_<PUBKEY_HEX_UPPER>=nsec1...
-```
+#### Relay enforcement
 
-> Technical basis: NIP-46 (Nostr Connect / nsecbunker) — adapted for enterprise DWs with mandate semantics. The Nodus variant replaces NIP-46 metadata events with a direct WebSocket RPC protocol optimised for latency.
+A conformant relay SHOULD implement write policies enforcing governance rules at write time:
 
-#### Relay enforcement: strfry writePolicy plugin
-
-The private relay uses a JavaScript `writePolicy` plugin that enforces governance rules at write time:
-
-| Phase | Rule |
-|-------|------|
-| M1.4 | Reject DELETE on kind:34002/34003 · DWs cannot sign kinds 34002, 34005 |
-| M3.3 | Verify NIP-26 delegation in DW events |
-| M5.2 | If kind:34005 active for tenant → reject all DW events (except owner's kind:34006) |
+- Relays MUST reject DELETE or UPDATE on kind:34002 and kind:34003
+- Entities with `entity_type: "digital_worker"` MUST NOT sign kinds 34002, 34005
+- Relay SHOULD verify NIP-26 delegation tags in DW events
+- If kind:34005 is active for a tenant, the relay MUST reject all DW events for that tenant (except owner's kind:34006)
 
 ---
 
 ### 5.7 Enterprise Control over Digital Workers
 
-A company must be able to know that:
+An organisation MUST be able to establish that:
 - The DW acting **is theirs** and not an impersonator
-- The DW **had authorization** for that specific action
-- If someone **steals the DW's key**, it can be revoked immediately
+- The DW **had authorisation** for that specific action
+- If someone **compromises the DW's key**, it can be revoked immediately
 - An **external DW** (partner/supplier) acts with the correct permissions
 
 #### The 4 control layers
 
 **Layer 1 — Governed creation**
-The DW keypair is generated at the company's Policy Relay. The `nsec` never leaves the server. Without relay access, the DW cannot act.
+The DW keypair SHOULD be generated and held at the organisation's Policy Relay. Without relay access, the DW cannot act.
 
 **Layer 2 — Signed mandate**
-The owner (CEO or admin) signs kind 34002: "may do X, may never do Y". Immutable, verifiable by anyone.
+The owner MUST sign kind 34002. The mandate defines what the DW may do. It is immutable and verifiable by anyone.
 
 **Layer 3 — Verifiable delegation**
-Every DW event carries NIP-26 proof that the owner authorized it. Any third party can verify without consulting any central server.
+Every DW event MUST carry NIP-26 proof that the owner authorised it. Any third party can verify without consulting any central server.
 
 **Layer 4 — Immutable audit**
-Every significant action → kind 34003. Cannot be deleted. Cannot be altered. The trace is permanent.
+Every significant action MUST produce kind 34003. It cannot be deleted or altered.
 
 #### Cryptographic hierarchy
 
 ```
-CEO / Company  (entity_type: "human")
+Owner  (entity_type: "human")
       │
       │ kind 34002 — signs mandate
       │ NIP-26 — delegates authority
@@ -589,21 +551,19 @@ Action → kind 34003 (immutable audit)
 
 ### 5.8 Panic Button and Revocation
 
-> *"A Digital Worker without a panic button is not an enterprise Digital Worker. It is a risk."*
+#### Revocation scenarios
 
-#### 4 revocation scenarios
+**Compromised DW**
+The owner signs a new kind:34002 marking it revoked → relay propagates immediately → **Time: seconds**
 
-**1. Compromised DW**
-→ Owner signs a new kind:34002 marking it revoked → relay propagates immediately → **Time: seconds**
+**Personnel offboarding**
+Revoke DWs associated with that person → revoke NIP-26 delegations they issued
 
-**2. Employee offboarding**
-→ Revoke DWs associated with that human → revoke NIP-26 delegations they issued
+**Total security incident**
+The owner publishes kind:34005 → relay rejects ALL DW events for the tenant → **Time: <30 seconds**
 
-**3. Total security incident**
-→ Owner publishes kind:34005 (`nodus:emergency-stop`) signed → relay rejects ALL DW events for the tenant → **Time: <30 seconds**
-
-**4. External DW (partner/supplier)**
-→ Revoke the NIP-26 delegation to the external DW → immediate effect, no coordination needed
+**External DW (partner/supplier)**
+Revoke the NIP-26 delegation to the external DW → immediate effect, no coordination needed
 
 #### kind:34005 — Emergency Stop
 
@@ -615,15 +575,17 @@ Action → kind 34003 (immutable audit)
     ["d", "<tenant_id>"],
     ["tenant", "<tenant_id>"]
   ],
-  "content": "{\"tenant\":\"1\",\"reason\":\"Security incident — precautionary suspension\",\"authorized_by\":\"<owner_npub>\"}"
+  "content": "{\"tenant\":\"<tenant_id>\",\"reason\":\"Security incident — precautionary suspension\",\"authorized_by\":\"<owner_npub>\"}"
 }
 ```
 
-The DW polls every 30 seconds for kind:34005/34006 events. Logic:
-```python
-# Active if: latest_stop_at > 0 and latest_stop_at > latest_resume_at
-# Effect: if self._emergency_active: return  (first line of _handle_message)
+DW implementations MUST poll for kind:34005/34006 events at least every 30 seconds. The emergency is active if:
+
 ```
+latest_stop_at > 0 AND latest_stop_at > latest_resume_at
+```
+
+When active, the DW MUST discard all incoming kind:10001 messages without processing.
 
 ---
 
@@ -634,89 +596,74 @@ The Nodus Protocol closes privilege escalation vectors structurally.
 #### The 4 safeguards
 
 **Safeguard 1 — Entity type in the profile**
-
-Kind 34000 carries `entity_type`: `"human"` vs `"digital_worker"`. Relay rule:
+kind:34000 MUST carry `entity_type`: `"human"` vs `"digital_worker"`. Relay rule:
 ```
 If event.author.entity_type == "digital_worker"
-And event.kind IN [34002, 34005, NIP-26 delegation]
+And event.kind IN [34002, 34005, NIP-26 delegation issuance]
 → REJECT always, without exception
 ```
 
 **Safeguard 2 — Hardware binding for humans**
-
-Humans authenticate via NIP-07 (browser extension), NIP-46 (mobile app), or hardware tokens. A DW cannot have a phone or browser extension. The asymmetry is physical.
+Humans SHOULD authenticate via NIP-07 (browser extension), NIP-46 (mobile app), or hardware tokens. A DW cannot have a phone or browser extension — the asymmetry is physical.
 
 **Safeguard 3 — Non-escalation principle**
-
-> A DW may not issue any event that modifies the limits of its own authority. None. Ever.
+A DW MUST NOT issue any event that modifies the limits of its own authority.
 
 **Safeguard 4 — Cryptographic HITL for critical actions**
-
-Actions marked `hitl_required` in the mandate require a live human signature (kind:10004). Without it, the action does not exist on the Nodus network.
+Actions marked `hitl_required` in the mandate MUST require a live human signature (kind:10004) before execution. Without it, the action does not exist on the Nodus network.
 
 ---
 
 ### 5.10 Graduated Governance Model
 
-The protocol defines 4 governance levels. A company may choose the level that suits it, and migrate upward over time.
+The protocol defines 4 governance levels. An organisation MAY choose the level that suits it, and migrate upward over time.
 
 | Level | Model | Suitable for |
 |-------|-------|-------------|
 | 0 | Total Owner | Most SMBs — one human controls everything |
-| 1 | Owner + Auditor | 5–10 employees — external read-only audit |
-| 2 | Multisig for critical actions | Mid-sized companies, regulated industries |
+| 1 | Owner + Auditor | 5–10 people — external read-only audit |
+| 2 | Multisig for critical actions | Mid-sized organisations, regulated industries |
 | 3 | Full governance | Enterprise — quorums, separation of powers, committees |
 
 **All levels share one universal minimum:** the audit log (kind:34003) is always immutable. The owner can do anything, but cannot erase the past.
-
-> *"It is like a permanent digital notary. The notary does not stop you from doing anything. But everything is recorded and verifiable forever."*
 
 ---
 
 ### 5.11 Federation and Cross-Enterprise Communication
 
-Each company has its own **private relay** (Policy Relay) with its internal governance. For external communication, a **public relay** exists — a shared network where DWs publish what they want to be externally visible.
+Each organisation has its own **private relay** with its internal governance. For external communication, a **public relay** exists — a shared network where DWs publish what they want to be externally visible.
 
 ```
-Company A (private relay A)
+Organisation A (private relay A)
     │
     └──► publishes kind:34000 to public relay
                     │
-    Company B ◄─────┘ (subscribed to public relay)
+    Organisation B ◄─────┘ (subscribed to public relay)
     (private relay B)
 ```
 
 #### Cross-enterprise verification
 
-When Company A's DW receives an event from Company B's DW:
+When Organisation A's DW receives an event from Organisation B's DW:
 
 1. Verify BIP-340 Schnorr signature → valid pubkey? ✅
 2. Query public relay → valid kind:34000 profile? ✅
-3. Check kind:34010 corporate KYC claim → verified legal entity? ✅
+3. Check kind:34010 KYC Corp Claim → verified legal entity? ✅
 4. If all OK → accept communication and record in kind:34003
-
-#### v0.2 federation mechanism
-
-The v0.2 federation (section 5.13) extends this with direct relay-to-relay discovery via `relay_hint` tags on kind:34001, enabling DWs to discover and communicate with DWs at other companies' private relays without a central registry.
 
 ---
 
-### 5.12 A2A Nostr-Native Protocol (v0.2)
-
-**Feature flag:** `NODUS_A2A_NOSTR_V2`  
-**Implementation:** `a2a_nostr_v2.py` in `nodus-adk-runtime`
+### 5.12 A2A Nostr-Native
 
 The A2A Nostr-Native protocol eliminates the HTTP intermediary in agent-to-agent communication. DWs coordinate directly via the Nostr relay using kinds 10010–10013.
 
-#### Motivation
-
-| Aspect | A2A HTTP v1 | A2A Nostr-Native v0.2 |
-|--------|-------------|----------------------|
-| Server dependency | DW B must have an HTTP endpoint | None — relay only |
+| Aspect | A2A HTTP | A2A Nostr-Native |
+|--------|----------|-----------------|
+| Server dependency | Target DW MUST have an HTTP endpoint | None — relay only |
 | Cross-tenant | Complex HTTP federation | Relay federation via `relay_hint` |
-| Audit | Manual kind:34003 | Events are inherently signed and immutable |
+| Audit | Manual audit entry | Events are inherently signed and immutable |
 | Mandate enforcement | Application-level | Policy Relay enforces at signature time |
-| Offline resilience | DW B must be online | Events queue at relay |
+| Offline resilience | Target MUST be online | Events queue at relay |
 
 #### Protocol kinds
 
@@ -749,9 +696,8 @@ kind:10013  A2A_ERROR     DW B → DW A  (error with context)
 ```
 DW A                         Relay                    DW B
   │  kind:10010 REQUEST        │                         │
-  │  request_id = uuid8        │                         │  REQ kinds:[10010] #p=[DW_B]
-  ├───────────────────────────►│                         │◄─────────────────────────────
-  │                            │  EVENT kind:10010       │
+  ├───────────────────────────►│                         │  REQ kinds:[10010] #p=[DW_B]
+  │                            │  EVENT kind:10010       │◄─────────────────────────────
   │  REQ kinds:[10011,10013]   ├────────────────────────►│  handler(action, params)
   │  #p=[DW_A], since=now-5    │                         │
   ├───────────────────────────►│                         │  kind:10011 RESPONSE
@@ -760,22 +706,11 @@ DW A                         Relay                    DW B
   │◄───────────────────────────┤                         │
 ```
 
-#### Streaming variant (kind:10012)
-
-```
-DW B → kind:10012 (chunk, done=false) ×N
-DW B → kind:10011 (final)
-DW A → AsyncIterator receives all chunks
-```
-
 ---
 
-### 5.13 Multi-Relay Federation (v0.2)
+### 5.13 Multi-Relay Federation
 
-**Feature flag:** `NODUS_FEDERATION_V2`  
-**Implementation:** `relay_federation.py` in `nodus-adk-runtime`
-
-Multi-relay federation enables DWs from different tenants (companies) to collaborate, each staying on their own private relay.
+Multi-relay federation enables DWs from different organisations to collaborate, each staying on their own private relay.
 
 #### Discovery mechanism
 
@@ -788,8 +723,8 @@ The `relay_hint` tag on kind:34001 teaches any observer about a tenant's relay a
   "tags": [
     ["d", "<owner_hex>-<external_dw_hex>"],
     ["p", "<external_dw_pubkey_hex>"],
-    ["tenant", "tenant-b"],
-    ["relay_hint", "wss://relay.tenant-b.example"],
+    ["tenant", "org-b"],
+    ["relay_hint", "wss://relay.org-b.example"],
     ["federation_scope", "delegate"]
   ],
   "content": "..."
@@ -799,61 +734,24 @@ The `relay_hint` tag on kind:34001 teaches any observer about a tenant's relay a
 **`federation_scope` values:**
 - `read-only` — can subscribe to events at the remote relay
 - `delegate` — can send A2A requests to DWs at the remote relay
-- `full` — bidirectional, including HITL cross-tenant
-
-#### Discovery flow
-
-```
-DW Tenant A                     Local Relay A
-     │  REQ {kinds:[34001], limit:50}
-     ├───────────────────────────────►│
-     │                                │  returns all 34001 events
-     │◄───────────────────────────────┤  (including ones with relay_hint)
-     │                                │
-     │  self._known_relays = {
-     │    "tenant-b": "wss://relay.tenant-b.example",
-     │    "tenant-c": "wss://relay.tenant-c.example"
-     │  }
-```
-
-The `RelayFederation` component maintains a map of known federated relays and provides `publish_to_federation(event, tenant)` and `subscribe_from_federation(filter, tenant)` APIs.
+- `full` — bidirectional, including cross-enterprise HITL
 
 ---
 
-### 5.14 Public DW Marketplace (v0.2)
+### 5.14 Public DW Discovery
 
-**Feature flag:** `NODUS_MARKETPLACE_V2`  
-**Implementation:** `nostr-marketplace-service.ts` in `nodus-backoffice`
-
-The marketplace makes DWs publicly discoverable while keeping their operational data (mandates, audit logs, sessions) on the private relay.
-
-#### Architecture
+DWs MAY opt in to a public relay for discovery while keeping their operational data (mandates, audit logs, sessions) on their private relay.
 
 ```
 Private relay (operations)          Public relay (discovery)
 ──────────────────────────          ────────────────────────
 kind:34002 mandate (private)        kind:34000 DW profile (public, t=nodus-dw)
-kind:34003 audit (private)          kind:31990 NIP-89 Agent Card (public)
-kind:10001-10021 sessions (private) kind:34010 KYC Claim (public)
+kind:34003 audit (private)          kind:34010 KYC Claim (public)
+kinds 10001–10021 sessions (private)
 ```
 
-#### Public DW profile (kind:34000 with `t` tag)
+When a DW opts in to public discovery, its kind:34000 is published to the public relay with an additional `["t", "nodus-dw"]` tag. Any client can discover all discoverable Nodus DWs by querying:
 
-When `nostr_marketplace_opt_in` is enabled for a tenant, the DW profile is published to the public relay with an additional `["t", "nodus-dw"]` tag:
-
-```json
-{
-  "kind": 34000,
-  "tags": [
-    ["d", "<dw_pubkey_hex>"],
-    ["p", "<dw_pubkey_hex>"],
-    ["t", "nodus-dw"]
-  ],
-  "content": "{\"name\":\"Athena\",\"about\":\"Root orchestrator\",\"nodus_version\":\"0.2\",\"dw_type\":\"adk\",\"capabilities\":[\"orchestrate\",\"email\"],\"limits\":[]}"
-}
-```
-
-Any client subscribed to the public relay can discover all Nodus DWs by querying:
 ```json
 {"kinds": [34000], "#t": ["nodus-dw"]}
 ```
@@ -869,60 +767,44 @@ Links a legal entity to its cryptographic identity. Published to the public rela
   "tags": [
     ["d", "kyc-<tenant_id>"],
     ["t", "nodus-kyc"],
-    ["legal_entity", "Nodus Factory SL"],
+    ["legal_entity", "Example Corp SL"],
     ["jurisdiction", "ES"],
     ["registration", "B12345678"],
     ["p", "<verifier_pubkey_hex>", "", "verifier"]
   ],
-  "content": "{\"legal_entity\":\"Nodus Factory SL\",\"jurisdiction\":\"ES\",\"registration\":\"B12345678\",\"tenant_id\":\"1\",\"nodus_version\":\"0.2\"}"
+  "content": "{\"legal_entity\":\"Example Corp SL\",\"jurisdiction\":\"ES\",\"registration\":\"B12345678\",\"nodus_version\":\"1.0\"}"
 }
 ```
 
-Any third party can verify a DW's legal identity without contacting Nodus by fetching the owner's kind:34010 from the public relay.
+Any third party can verify a DW's legal identity by fetching the owner's kind:34010 from the public relay — without contacting any central authority.
 
 ---
 
-### 5.15 Cross-Enterprise HITL (v0.2)
+### 5.15 Cross-Enterprise HITL
 
-**Feature flag:** `NODUS_CROSS_TENANT_HITL_V2`  
-**Implementation:** `cross_tenant_hitl.py` in `nodus-adk-runtime`
+Cross-Enterprise HITL allows a human from a client organisation to approve DW actions using their own keypair and their own relay — without needing an account on the provider's system.
 
-Cross-Enterprise HITL allows a human from a client company to approve DW actions using their own keypair and their own relay — without needing a Nodus account.
-
-#### Key design properties
-
+**Key design properties:**
 - **No central dependency:** the human uses their own app, their own keypair, their own relay
-- **Cryptographic validation:** the human's kind:10004 must be signed by a pubkey that appears in a cross-tenant kind:34001 at the provider's relay
-- **No trust required:** the DW does not need to trust Nodus — it only trusts cryptographic signatures
+- **Cryptographic validation:** the human's kind:10004 MUST be signed by a pubkey that appears in a cross-tenant kind:34001 at the provider's relay
+- **No trust required:** the DW does not need to trust the provider — it only trusts cryptographic signatures
 
-#### Full flow (6 steps)
+#### Full flow
 
-1. **Mandate defines scope** — the mandate (kind:34002) specifies which actions require cross-tenant HITL
-2. **DW publishes HITL request** — kind:10003 published to the provider's relay
-3. **Bridge copies to client relay** — `CrossTenantHitlBridge` publishes kind:10003 to the client's relay (discovered via `relay_hint` on kind:34001)
-4. **Client human sees request** — the human sees kind:10003 in their app on their relay
-5. **Human signs response** — signs kind:10004 with their own keypair, published to their relay
-6. **DW validates and continues** — DW subscribes to client relay, receives kind:10004, validates that `event.pubkey` appears in a cross-tenant kind:34001 at the provider relay
+1. The mandate (kind:34002) specifies which actions require cross-enterprise HITL
+2. DW publishes HITL request (kind:10003) to the provider's relay
+3. The request is forwarded to the client's relay (discovered via `relay_hint` on kind:34001)
+4. The client human sees the request in their app on their relay
+5. Human signs response (kind:10004) with their own keypair, published to their relay
+6. DW validates: the responder's pubkey MUST appear in a cross-tenant kind:34001 at the provider relay
 
-#### Authorisation validation
-
-```python
-async def _is_authorized_human(self, pubkey_hex: str) -> bool:
-    # REQ {kinds:[34001], "#p":[pubkey_hex], "limit":5}
-    # Returns True if any 34001 event at the local relay mentions this pubkey
-    # This proves the cross-tenant org-relation was established by the owner
-```
-
-**Security:** if the responder's pubkey does not appear in any kind:34001, the response is discarded. No cryptographic forgery can bypass this — the kind:34001 is signed by the owner and stored at the provider's relay.
+**Security:** if the responder's pubkey does not appear in any kind:34001, the response is discarded. No cryptographic forgery can bypass this check.
 
 ---
 
-### 5.16 Verifiable Employment Contracts (v0.2)
+### 5.16 Verifiable Employment Contracts
 
-**Feature flag:** `NODUS_VERIFIABLE_CONTRACTS_V2`  
-**Implementation:** `nostr-contract-service.ts` in `nodus-backoffice`
-
-A verifiable employment contract binds a DW, its owner, and a legal entity into a single cryptographically verifiable document. Any third party — auditor, regulator, partner — can verify the contract without contacting Nodus.
+A verifiable employment contract binds a DW, its owner, and a legal entity into a single cryptographically verifiable document. Any third party — auditor, regulator, partner — can verify the contract without contacting any centralised authority.
 
 #### Contract components
 
@@ -935,13 +817,8 @@ A verifiable employment contract binds a DW, its owner, and a legal entity into 
 
 #### Contract hash
 
-```typescript
-const contractHashInput = [
-  mandateEventId,
-  orgRelationEventId,
-  kycClaimEventId ?? ""
-].join(":");
-const contractHash = crypto.createHash("sha256").update(contractHashInput).digest("hex");
+```
+contract_hash = sha256(mandate_event_id + ":" + org_relation_event_id + ":" + kyc_claim_event_id)
 ```
 
 #### Contract event (kind:34002 with `t=nodus-contract`)
@@ -959,197 +836,80 @@ const contractHash = crypto.createHash("sha256").update(contractHashInput).diges
     ["t", "nodus-contract"],
     ["expiration", "<unix_ts_optional>"]
   ],
-  "content": "{\"contract_hash\":\"<hash>\",\"dw\":\"<dw_pubkey_hex>\",\"legal_entity\":\"Nodus Factory SL\",\"nodus_version\":\"0.2\"}"
+  "content": "{\"contract_hash\":\"<hash>\",\"dw\":\"<dw_pubkey_hex>\",\"nodus_version\":\"1.0\"}"
 }
 ```
 
-#### Third-party verification (no trust in Nodus required)
+#### Third-party verification (trustless)
 
 1. Fetch kind:34002 `#d=<contract_hash>` from the relay
 2. Verify the three `e` tag events exist and are correctly signed
-3. Recompute: `sha256(mandate_id + ":" + org_relation_id + ":" + kyc_claim_id)` — must match `d` tag
+3. Recompute: `sha256(mandate_id + ":" + org_relation_id + ":" + kyc_claim_id)` — MUST match `d` tag
 4. Verify BIP-340 Schnorr signature on each referenced event
 5. Check `expiration` tag if present
 
-**Public verification endpoint:** `GET /api/contracts/verify/:hash`
-
-#### Human-readable contract statement example
-
-> *"Nodus Factory SL (reg. B12345678, ES) has authorised Digital Worker `npub1abc...xyz` (Athena) to perform [send_email, read_calendar, orchestrate] on behalf of Client SL, subject to HITL approval for all financial actions and email sends. Effective 2026-04-01. No expiry. Contract hash: `sha256:abcdef...`"*
-
-Any observer with the contract hash and access to the relay can independently verify this statement.
-
 ---
 
-## 6. Reference Implementation
+## 6. Conformance and Certification
 
-**Nodus OS** is the first certified implementation of the Nodus Protocol. It implements all milestones M0–M13 additively behind feature flags.
+An implementation is conformant with the Nodus Protocol if it meets the following requirements.
 
-**Reference stack:**
-- Agent runtime: Google ADK + FastAPI
-- Multi-step workflows: LangGraph
-- Memory and knowledge: vector store (Qdrant) + graph (PostgreSQL)
-- Private Nostr relay: strfry + writePolicy hooks
-- Policy Relay: custom WebSocket server (NIP-46 variant)
-- Deployment: Kubernetes (GitOps via ArgoCD)
+### Conformance levels
 
-### 6.1 Reference Implementation Status
-
-| Milestone | Description | Status | Primary repo |
-|-----------|-------------|--------|-------------|
-| M0 | DW & Human Identities (kind:34000 + kind:34001) | ✅ Implemented | nodus-adk-runtime, nodus-llibreta-v2 |
-| M1 | Mandates (kind:34002, immutable) | ✅ Implemented | nodus-backoffice, nodus-adk-runtime |
-| M2 | Audit Log (kind:34003, append-only) | ✅ Implemented | nodus-adk-runtime |
-| M3 | NIP-26 Delegation (authority proof per event) | ✅ Implemented | nodus-adk-runtime |
-| M4 | Constitutional HITL (kind:10003/10004, NIP-07 + custodial) | ✅ Implemented | nodus-adk-runtime, nodus-llibreta-v2 |
-| M5 | Emergency Stop/Resume (kind:34005/34006, <30s halt) | ✅ Implemented | nodus-backoffice, nodus-adk-runtime |
-| M6 | Room UX + Async HITL Inbox (kind:10020/10021) | ✅ Implemented | nodus-llibreta-v2 |
-| M7 | MCP Governance (kind:34004, DW verifies gateway) | ✅ Implemented | nodus-mcp-gateway, nodus-adk-runtime |
-| M8 | Policy Relay (NIP-46 variant, nsec never leaves relay) | ✅ Implemented | nodus-adk-runtime |
-| M9 | A2A Nostr-Native (kinds 10010–10013) | ✅ Implemented (v0.2) | nodus-adk-runtime |
-| M10 | Multi-Relay Federation (relay_hint discovery) | ✅ Implemented (v0.2) | nodus-adk-runtime |
-| M11 | Public DW Marketplace (kind:34000 + kind:34010 public) | ✅ Implemented (v0.2) | nodus-backoffice |
-| M12 | Cross-Enterprise HITL (cross-tenant approval) | ✅ Implemented (v0.2) | nodus-adk-runtime, nodus-llibreta-v2 |
-| M13 | Verifiable Employment Contracts (contract hash) | ✅ Implemented (v0.2) | nodus-backoffice |
-
-**All flags default to `false`.** The v1 HTTP system is never touched. Enable incrementally.
-
-### 6.2 Activation Flags
-
-All protocol feature flags reside in `nodus-adk-runtime/src/nodus_adk_runtime/config/feature_flags.py`. Activation is via environment variable with the same name.
-
-#### Recommended activation order
-
-**Phase 1 — Base identities**
-```bash
-NODUS_PROTOCOL_IDENTITY_V1=true
-NOSTR_ADK_TRANSPORT_V1=true
-NOSTR_RELAY_URL=ws://nostr-relay:7777
-NOSTR_AGENT_NSEC=nsec1...
-```
-*Verify:* DW profile appears on relay. Transport subscribes to kind:10001.
-
-**Phase 2 — Mandates**
-```bash
-NODUS_PROTOCOL_MANDATES_V1=true
-# Publish kind:34002 via Backoffice → POST /api/workers/:id/mandate
-```
-*Verify:* Logs show `mandate check permitted=True`.
-
-**Phase 3 — Audit**
-```bash
-NODUS_PROTOCOL_AUDIT_V1=true
-```
-*Verify:* Logs show `audit: logged agent_response`.
-
-**Phase 4 — NIP-26 Delegation**
-```bash
-NODUS_PROTOCOL_DELEGATION_V1=true
-NOSTR_OWNER_NSEC=nsec1...
-```
-*Verify:* Events carry `delegation` tag. Token creation logged.
-
-**Phase 5 — Constitutional HITL**
-```bash
-NODUS_PROTOCOL_CONSTITUTIONAL_HITL_V1=true
-```
-*Verify:* HITL requests appear as kind:10003. kind:10004 signed by user.
-
-**Phase 6 — Emergency Controls**
-```bash
-NODUS_PROTOCOL_EMERGENCY_V1=true
-NODUS_TENANT_ID=1
-```
-*Verify:* Panic button publishes kind:34005. DW detects in <30s.
-
-**Phase 7 — Room UX**
-```bash
-ROOMS_UX_V2=true
-```
-*Verify:* Route `/room/:sessionId` accessible.
-
-**Phase 8 — Policy Relay**
-```bash
-NODUS_POLICY_RELAY_V1=true
-NODUS_POLICY_RELAY_URL=ws://policy-relay:8080/sign
-# Move NOSTR_AGENT_NSEC from DW pod to Policy Relay (NODUS_DW_NSEC_MAP)
-```
-*Verify:* DW has no NSEC. Logs show `Policy Relay mode active`.
-
-**Phase 9 — v0.2 features**
-```bash
-NODUS_A2A_NOSTR_V2=true          # M9: DW-to-DW via Nostr
-NODUS_FEDERATION_V2=true         # M10: Cross-tenant relay discovery
-NODUS_CROSS_TENANT_HITL_V2=true  # M12: HITL from external company
-# M11/M13: via Backoffice UI (no flag in feature_flags.py)
-```
-
-#### Complete flag reference
-
-| Flag | Milestone | Default | Description |
-|------|-----------|---------|-------------|
-| `NOSTR_ADK_TRANSPORT_V1` | M0 | `false` | Activates NostrAdkTransport — DW listens on kind:10001 |
-| `NODUS_PROTOCOL_IDENTITY_V1` | M0 | `false` | Publishes kind:34000 DW profile to relay |
-| `NODUS_PROTOCOL_MANDATES_V1` | M1 | `false` | DW consults kind:34002 mandate before acting |
-| `NODUS_PROTOCOL_AUDIT_V1` | M2 | `false` | DW publishes kind:34003 per action |
-| `NODUS_PROTOCOL_DELEGATION_V1` | M3 | `false` | Adds NIP-26 delegation tag to all events |
-| `NODUS_PROTOCOL_CONSTITUTIONAL_HITL_V1` | M4 | `false` | Enables kind:10003/10004 constitutional HITL |
-| `NODUS_PROTOCOL_EMERGENCY_V1` | M5 | `false` | Activates 30s emergency stop polling |
-| `ROOMS_UX_V2` | M6 | `false` | Enables `/room/:sessionId` route in frontend |
-| `NODUS_PROTOCOL_MCP_PROFILE_V1` | M7 | `false` | DW verifies kind:34004 before MCP calls |
-| `NODUS_POLICY_RELAY_V1` | M8 | `false` | DW delegates all signing to Policy Relay |
-| `NODUS_A2A_NOSTR_V2` | M9 | `false` | Enables kinds 10010–10013 A2A |
-| `NODUS_FEDERATION_V2` | M10 | `false` | Enables cross-tenant relay discovery |
-| `NODUS_CROSS_TENANT_HITL_V2` | M12 | `false` | Enables cross-tenant HITL bridge |
-
----
-
-## 7. Conformance and Certification
-
-An implementation is compatible with Nodus Protocol v0.2 if it meets:
+- **MUST** — mandatory for any conformant implementation
+- **SHOULD** — strongly recommended; deviations MUST be documented
+- **MAY** — optional; implementations are free to include or omit
 
 ### Minimum conformance checklist
 
-**Identity (M0):**
-- [ ] Each DW has a unique, securely generated keypair (npub/nsec)
-- [ ] Each DW has a kind:34000 profile published on the relay
-- [ ] The `entity_type` field is present and correct
-- [ ] DW nsec keys are custodial (never leave the server, or reside in Policy Relay)
+**Identity:**
+- [ ] Each DW MUST have a unique, securely generated keypair (npub/nsec)
+- [ ] Each DW MUST have a kind:34000 profile published on the relay
+- [ ] The `entity_type` field MUST be present and correct
+- [ ] DW private keys SHOULD be held custodially (never leave the server, or reside in a Policy Relay)
 
-**Mandates (M1):**
-- [ ] Every DW action references a valid, active kind:34002 mandate
-- [ ] The relay rejects actions from DWs without a valid mandate
-- [ ] The relay refuses DELETE and UPDATE on kinds 34002 and 34003
+**Mandates:**
+- [ ] Every DW action MUST reference a valid, active kind:34002 mandate
+- [ ] The relay MUST reject events from DWs without a valid mandate
+- [ ] The relay MUST refuse DELETE and UPDATE on kinds 34002 and 34003
 
-**Delegation (M3):**
-- [ ] DW actions carry NIP-26 delegation proof from the owner
-- [ ] The relay verifies delegation proofs
+**Delegation:**
+- [ ] DW actions MUST carry NIP-26 delegation proof from the owner
+- [ ] The relay MUST verify delegation proofs
 
-**Audit (M2):**
-- [ ] Every significant action generates a kind:34003 event
-- [ ] The audit log is append-only
-- [ ] The relay refuses DELETE and UPDATE on kind:34003
+**Audit:**
+- [ ] Every significant action MUST generate a kind:34003 event
+- [ ] The audit log MUST be append-only
+- [ ] The relay MUST refuse DELETE and UPDATE on kind:34003
 
-**Constitutional HITL (M4):**
-- [ ] Actions marked `hitl_required` in the mandate require a kind:10004 before execution
-- [ ] kind:10004 is signed by the human's keypair (NIP-07 or custodial)
+**Constitutional HITL:**
+- [ ] Actions marked `hitl_required` MUST require a kind:10004 before execution
+- [ ] kind:10004 MUST be signed by the human's keypair (NIP-07 or custodial)
 
 **Human/DW Separation:**
-- [ ] The relay rejects kind:34002, 34005 events from `digital_worker` entities
-- [ ] No DW can modify the limits of its own authority
+- [ ] The relay MUST reject kind:34002, 34005 events from `digital_worker` entities
+- [ ] No DW MAY modify the limits of its own authority
 
-**Revocation (M5):**
-- [ ] kind:34005 stops all tenant DWs in <30 seconds
-- [ ] Individual mandate revocation is effective in <10 seconds
+**Revocation:**
+- [ ] kind:34005 MUST stop all tenant DWs within 30 seconds
+- [ ] Individual mandate revocation MUST be effective within 10 seconds
 
-**v0.2 additions (M9–M13):**
+**Optional protocol extensions:**
 - [ ] A2A Nostr-Native (if implemented): kinds 10010–10013 with correct tag structure
 - [ ] Cross-tenant federation (if implemented): kind:34001 `relay_hint` tag respected
 - [ ] Verifiable contracts (if implemented): `contract_hash = sha256(mandate+org_relation+kyc)` verifiable
 
-### Certification process
+---
 
-*(To be defined — including corporate KYC via kind:34010, audit by Nodus operator, and registration on the public Nodus Relay)*
+## 7. Certified Implementations
+
+| Name | Vendor | Status | Since |
+|------|--------|--------|-------|
+| **Nodus OS** | Nodus Factory | Certified | v1.0 |
+
+Nodus OS is the reference implementation of the Nodus Protocol. It is the first system to validate all conformance requirements in production.
+
+To register a new certified implementation, open a pull request adding it to this table with a link to a conformance test report.
 
 ---
 
@@ -1160,28 +920,27 @@ An implementation is compatible with Nodus Protocol v0.2 if it meets:
 | Term | Definition |
 |------|-----------|
 | **A2A** | Agent-to-Agent. Direct communication between Digital Workers. |
-| **A2A Nostr-Native** | v0.2 A2A transport using kinds 10010–10013 via relay, no HTTP server. |
+| **A2A Nostr-Native** | A2A transport using kinds 10010–10013 via relay, no HTTP server. |
 | **ACP** | Agent Communication Protocol. Persistent stateful sessions between agents. |
 | **Audit log** | Immutable record of all significant DW actions. Kind 34003. |
 | **Constitutional HITL** | Human approval that produces a cryptographic signature (kind:10004). |
-| **Cross-Enterprise HITL** | HITL approval from a human at a different company using their own keypair. |
-| **Delegation** | NIP-26 mechanism by which a human authorizes a DW to act on their behalf. |
+| **Cross-Enterprise HITL** | HITL approval from a human at a different organisation using their own keypair. |
+| **Delegation** | NIP-26 mechanism by which a human authorises a DW to act on their behalf. |
 | **DW** | Digital Worker. AI agent with identity, mandate, and defined limits. |
-| **Emergency-stop** | Kind 34005. Immediately stops all DWs in a tenant in <30 seconds. |
-| **Federation** | Multi-relay architecture enabling DWs at different tenants to collaborate. |
-| **Feature flag** | Environment variable controlling protocol feature activation. All default to `false`. |
+| **Emergency-stop** | Kind 34005. Stops all DWs in a tenant within 30 seconds. |
+| **Federation** | Multi-relay architecture enabling DWs at different organisations to collaborate. |
 | **HITL** | Human-in-the-Loop. Human intervention in an agent workflow. |
-| **Corporate KYC** | Know Your Customer applied to companies. Kind 34010. |
+| **KYC Corp Claim** | Verifiable link between a legal entity and its cryptographic identity. Kind 34010. |
 | **Mandate** | Signed document defining what a DW can and cannot do. Kind 34002. |
 | **MCP** | Model Context Protocol. Standard for connecting agents to external tools. |
 | **npub** | Nostr public key. Public identifier of an entity. |
-| **nsec** | Nostr private key. Never shared. For DWs, lives custodially at the relay or Policy Relay. |
-| **NIP** | Nostr Implementation Proposal. Specification of Nostr protocol functionality. |
-| **Nostr** | Decentralized protocol based on keypairs and relays. Foundation of the Nodus Protocol governance layer. |
-| **Policy Relay** | Extended Nostr relay acting as a Signing Service with mandate enforcement. DW nsec never leaves it. |
-| **relay_hint** | Tag on kind:34001 advertising another tenant's relay address for federation. |
-| **Relay** | Nostr server that distributes events. Nodus uses private relays (per tenant) and a public relay (marketplace). |
-| **Tenant** | Company or organization operating DWs under the Nodus Protocol. |
+| **nsec** | Nostr private key. For DWs, SHOULD be held custodially. |
+| **NIP** | Nostr Implementation Proposal. Extension to the Nostr protocol. |
+| **Nostr** | Decentralised protocol based on keypairs and relays. Governance foundation of the Nodus Protocol. |
+| **Policy Relay** | Extended Nostr relay acting as a Signing Service with mandate enforcement. |
+| **relay_hint** | Tag on kind:34001 advertising another organisation's relay address for federation. |
+| **Relay** | Nostr server that distributes events. |
+| **Tenant** | Organisation operating DWs under the Nodus Protocol. |
 | **Verifiable contract** | kind:34002 event whose `d` tag is `sha256(mandate+org_relation+kyc)`, verifiable by any third party. |
 
 ### B. Referenced Nostr NIPs
@@ -1200,21 +959,15 @@ An implementation is compatible with Nodus Protocol v0.2 if it meets:
 | NIP-59 | Gift Wrap | https://github.com/nostr-protocol/nostr/blob/master/59.md |
 | NIP-89 | Recommended Application Handlers | https://github.com/nostr-protocol/nostr/blob/master/89.md |
 | NIP-90 | Data Vending Machines | https://github.com/nostr-protocol/nostr/blob/master/90.md |
+| RFC 2119 | Key words for use in RFCs | https://www.rfc-editor.org/rfc/rfc2119 |
 
 ### C. Referenced External Protocols
 
-| Protocol | Version | URL |
-|----------|---------|-----|
-| Google A2A | v0.3.0 | https://google.github.io/A2A |
-| MCP (Model Context Protocol) | 2024-11 | https://modelcontextprotocol.io |
-
-### D. Changelog
-
-| Version | Date | Description |
-|---------|------|-------------|
-| v0.1 | March 2026 | First internal draft. 4 layers, kinds 34000–34010, graduated governance, conceptual Policy Relay. |
-| **v0.2** | **April 2026** | **Release Candidate. Reference implementation available (M0–M13). A2A Nostr-native, multi-relay federation, public marketplace, cross-enterprise HITL, verifiable contracts. KINDS.md and FLOWS.md added.** |
+| Protocol | URL |
+|----------|-----|
+| Google A2A | https://google.github.io/A2A |
+| MCP (Model Context Protocol) | https://modelcontextprotocol.io |
 
 ---
 
-*Nodus Factory · © 2026 · CC BY 4.0*
+*Nodus Protocol Working Group · nodus.social · CC BY 4.0*
