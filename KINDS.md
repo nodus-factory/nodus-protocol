@@ -721,4 +721,4 @@ Governance Layer (NIP-33 parameterized replaceable)
 
 ---
 
-*Nodus Protocol Working Group · CC BY 4.0*
+*Nodus Protocol™ · Nodus Protocol Working Group · CC BY 4.0 · Nodus Protocol™ is a trademark of Nodus Factory SL*

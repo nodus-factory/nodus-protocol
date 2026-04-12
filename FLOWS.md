@@ -365,4 +365,4 @@ Organisation (buyer)          Public Relay              Worker operator
 
 ---
 
-*Nodus Protocol Working Group · CC BY 4.0*
+*Nodus Protocol™ · Nodus Protocol Working Group · CC BY 4.0 · Nodus Protocol™ is a trademark of Nodus Factory SL*

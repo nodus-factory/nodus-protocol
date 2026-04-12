@@ -1,4 +1,4 @@
-# Nodus Protocol
+# Nodus Protocol™
 
 > **Status:** First Public Release  
 > **Authors:** Nodus Protocol Working Group  
@@ -6,6 +6,8 @@
 > **Date:** April 2026  
 > **License:** Creative Commons Attribution 4.0 International (CC BY 4.0)  
 > **Canonical URL:** https://nodus.social/protocol
+
+> **Trademark notice:** Nodus Protocol™ and Nodus Protocol Certified™ are trademarks of Nodus Factory SL. The specification is open (CC BY 4.0) — anyone may implement it freely with attribution. Use of the "Nodus Protocol Certified™" mark requires completing the official conformance process. See [Certified Implementations](#7-certified-implementations).
 
 ---
 
@@ -1023,4 +1025,4 @@ To register a new implementation, open a pull request adding it to this table wi
 
 ---
 
-*Nodus Protocol Working Group · [nodus.social](https://nodus.social) · [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)*
+*Nodus Protocol™ · Nodus Protocol Working Group · [nodus.social](https://nodus.social) · [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) · Nodus Protocol™ and Nodus Protocol Certified™ are trademarks of Nodus Factory SL*
