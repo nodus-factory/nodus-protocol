@@ -2,41 +2,56 @@
 
 Thank you for your interest in the Nodus Protocol.
 
-This specification is in **public draft** (v0.1). Feedback, questions, and proposals are welcome.
+The specification is at **v1.0 (First Public Release)**. Feedback, questions, and proposals are welcome.
 
 ## How to Contribute
 
 ### Issues
+
 Use GitHub Issues to:
 - Ask questions about the specification
 - Report ambiguities or inconsistencies
-- Propose new concepts or extensions
+- Propose new kinds, extensions, or governance mechanisms
 
 ### Pull Requests
+
 For corrections or additions to the specification:
+
 1. Fork the repository
-2. Create a branch (`spec/your-topic`)
-3. Make your changes to `SPEC.md`
-4. Open a PR with a clear description of what you're changing and why
+2. Create a branch: `spec/your-topic`
+3. Make your changes
+4. Open a PR with a clear description of what you are changing and why
 
-### Discussion
-For broader architectural discussions, use GitHub Discussions.
+Keep PRs focused. One topic per PR.
 
-## Principles
+### Discussions
 
-All contributions must respect the [Design Principles](SPEC.md#3-design-principles) of the protocol, especially:
+For broader architectural discussions — new protocol layers, governance models, federation patterns — use GitHub Discussions.
+
+## Scope
+
+The documents in this repository are **protocol specifications**, not implementation guides. When contributing:
+
+- Write in terms of abstract roles (Initiator, Worker, Owner, Relay) — not specific systems or libraries
+- Use MUST / SHOULD / MAY per [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119)
+- Keep JSON examples using abstract placeholders (`<worker_pubkey_hex>`, `<tenant_id>`, etc.)
+- Implementation details belong in `IMPLEMENTATION-GUIDE.md`, not in SPEC.md, KINDS.md, or FLOWS.md
+
+## Design Principles
+
+All contributions MUST respect the [Design Principles](SPEC.md#3-design-principles), especially:
+
 - **P1** — Clear and verifiable identity
 - **P4** — Immutable auditability
 - **P6** — Ontological separation: Human / Digital Worker
 
-## Scope of v0.1
+## Registering a Certified Implementation
 
-The current draft is intentionally minimal. The following areas are explicitly out of scope for v0.1 and will be addressed in v0.2:
+To register your implementation as conformant with the Nodus Protocol:
 
-- Full Policy Relay implementation details (nsec management, HSM/KMS options)
-- Certification process and corporate KYC (kind 34010)
-- Economic model (staking, marketplace, NOD token)
-- NIP-46 adaptation for DWs (vs humans)
+1. Verify your implementation against the [conformance checklist](SPEC.md#minimum-conformance-checklist)
+2. Prepare a public conformance test report (automated or documented manual verification)
+3. Open a pull request adding your implementation to the Certified Implementations table in SPEC.md
 
 ## License
 
