@@ -1,4 +1,4 @@
-# Nodus Protocol
+# Nodus Protocol™
 
 **Governance specification for Digital Workers** — identity, delegation, mandate, audit, emergency control, and verifiable human intervention.
 
@@ -81,4 +81,6 @@ To register a new implementation, open a pull request.
 
 ---
 
-*Nodus Protocol Working Group · [protocol@nodus.social](mailto:protocol@nodus.social)*
+*Nodus Protocol™ · Nodus Protocol Working Group · [protocol@nodus.social](mailto:protocol@nodus.social)*
+
+> Nodus Protocol™ and Nodus Protocol Certified™ are trademarks of Nodus Factory SL. The specification text is licensed CC BY 4.0.
