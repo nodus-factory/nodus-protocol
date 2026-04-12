@@ -2,7 +2,7 @@
 
 Thank you for your interest in the Nodus Protocol.
 
-The specification is at **v1.0 (First Public Release)**. Feedback, questions, and proposals are welcome.
+The specification is at **v1.0.1**. Feedback, questions, and proposals are welcome.
 
 ## How to Contribute
 
