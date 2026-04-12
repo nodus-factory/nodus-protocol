@@ -88,7 +88,11 @@ All events MUST be signed with BIP-340 Schnorr signatures over secp256k1, as def
 ```
 
 **Required tags:** `p`, `session`, `request`, `agent`
-**Conditional tags:** `delegation` — REQUIRED when NIP-26 delegation is active (see SPEC.md §5.4)
+**Conditional tags:**
+- `delegation` — REQUIRED when NIP-26 delegation is active (see SPEC.md §5.4)
+- `relay_proof` — REQUIRED when signed by a Policy Relay (see SPEC.md §5.6)
+
+The `relay_proof` tag value is `sha256(event.id + policy_relay_pubkey_hex)`. Its presence proves the event passed through the custodial Policy Relay rather than being signed directly by the DW process.
 
 ---
 
@@ -542,7 +546,7 @@ All Governance Layer kinds are **parameterized replaceable events** (NIP-33). Th
 | **Layer** | Governance — Audit |
 | **Publisher** | Worker |
 
-**Description:** An immutable, append-only record of a significant action. The `d` tag is computed as `SHA-256(worker_pubkey + session_id + timestamp_ms)` to guarantee uniqueness. Relays MUST block overwrites.
+**Description:** An immutable, append-only record of a significant action. The `d` tag is computed as `SHA-256(worker_pubkey_hex + ":" + session_id + ":" + timestamp_ms)` — the three components joined with `:` separators before hashing. This guarantees uniqueness across DW+session+time and enforces append-only semantics at the relay level. Relays MUST block overwrites.
 
 ```json
 {

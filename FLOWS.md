@@ -76,7 +76,7 @@ All events published by the Worker carry a `["delegation", owner_pubkey, conditi
 
 **Kinds involved:** 10001, 10002, 10003, 10004, 34003
 
-The Worker encounters an action in `hitl_required`. It publishes a HITL request, suspends execution, and waits for a cryptographically signed human approval before proceeding.
+The Worker encounters an action in `hitl_required`. It publishes a HITL request and, to unblock any waiting bridge or frontend, immediately publishes a kind:10002 placeholder. The final response is delivered only after the Owner signs a kind:10004 approval and the Worker resumes execution.
 
 ```
 Initiator              Relay                Worker              Owner client
@@ -85,19 +85,24 @@ Initiator              Relay                Worker              Owner client
     ├───────────────────►│                    │                      │
     │                    ├───────────────────►│                      │
     │                    │                    │ detects hitl_required │
-    │                    │                    │                      │
     │                    │                    │ suspend execution     │
+    │                    │                    │                      │
     │                    │◄───────────────────┤ EVENT kind:10003      │
     │  kind:10003         │                    │ HITL_REQUEST          │
     │  HITL_REQUEST       │                    │                      │
     │◄───────────────────┤                    │                      │
     │                    │                    │                      │
-    │ [shows approval UI]│                    │                      │
+    │ [shows approval UI]│                    │ [note: Worker SHOULD  │
+    │                    │                    │  immediately publish  │
+    │                    │◄───────────────────┤  a kind:10002         │
+    │  kind:10002 (*)     │                    │  placeholder to       │
+    │  RESPONSE_DW        │                    │  unblock the bridge]  │
+    │  (placeholder)      │                    │                      │
+    │◄───────────────────┤                    │                      │
     │                    │                    │                      │
     │                    │                    │ REQ kinds:[10004]     │
     │                    │                    │ #request=<10003.id>   │
     │                    │◄───────────────────┤                      │
-    │                    │                    │                      │
     │                    │                    │ waiting...            │
     │                    │                    │                      │
     │ Owner signs         │                    │                      │
@@ -114,11 +119,13 @@ Initiator              Relay                Worker              Owner client
     │                    │                    │ [audit: hitl_decision]│
     │                    │◄───────────────────┤ EVENT kind:34003      │
     │                    │                    │                      │
-    │                    │                    │ resume execution      │
+    │                    │                    │ resume and complete   │
     │                    │◄───────────────────┤ EVENT kind:10002      │
-    │  kind:10002         │                    │ RESPONSE_DW           │
+    │  kind:10002 (final) │                    │ RESPONSE_DW (final)   │
     │◄───────────────────┤                    │                      │
 ```
+
+**(*) Placeholder kind:10002:** Implementations SHOULD publish a kind:10002 immediately after kind:10003, with a brief message indicating that the action is pending human approval (e.g. `"Action pending your confirmation"`). This prevents bridges and frontends from blocking indefinitely on a response that will arrive asynchronously. The final kind:10002 with the actual result is published after the approval is received and execution is resumed.
 
 **Cryptographic proof of authority:**
 The kind:10004 event is signed with the Owner's private key. Any third party can verify — without consulting any server — that a human with authorised keys approved this specific action, at this specific time, referencing this specific HITL request.
