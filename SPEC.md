@@ -850,11 +850,14 @@ contract_hash = sha256(mandate_event_id + ":" + org_relation_event_id + ":" + ky
 
 ---
 
+
 ## 6. Conformance and Certification
 
 An implementation is conformant with the Nodus Protocol if it meets the following requirements.
 
 ### Conformance levels
+
+The key words in this section are to be interpreted as described in [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119):
 
 - **MUST** — mandatory for any conformant implementation
 - **SHOULD** — strongly recommended; deviations MUST be documented
@@ -862,42 +865,50 @@ An implementation is conformant with the Nodus Protocol if it meets the followin
 
 ### Minimum conformance checklist
 
-**Identity:**
-- [ ] Each DW MUST have a unique, securely generated keypair (npub/nsec)
-- [ ] Each DW MUST have a kind:34000 profile published on the relay
-- [ ] The `entity_type` field MUST be present and correct
-- [ ] DW private keys SHOULD be held custodially (never leave the server, or reside in a Policy Relay)
+**Identity (required):**
+- [ ] Each DW MUST have a unique, securely generated secp256k1 keypair (npub/nsec)
+- [ ] Each DW MUST publish a kind:34000 profile on its private relay at startup
+- [ ] The `entity_type` field MUST be present and set to `"digital_worker"`
+- [ ] DW private keys SHOULD reside in a Policy Relay or equivalent custodial system; they SHOULD NOT be held by the DW process itself
 
-**Mandates:**
-- [ ] Every DW action MUST reference a valid, active kind:34002 mandate
-- [ ] The relay MUST reject events from DWs without a valid mandate
-- [ ] The relay MUST refuse DELETE and UPDATE on kinds 34002 and 34003
+**Mandates (required):**
+- [ ] The DW MUST fetch and validate its kind:34002 mandate before executing any action
+- [ ] The relay MUST refuse DELETE and UPDATE on kind:34002
 
-**Delegation:**
-- [ ] DW actions MUST carry NIP-26 delegation proof from the owner
-- [ ] The relay MUST verify delegation proofs
+**Delegation (required):**
+- [ ] DW events MUST carry a valid NIP-26 delegation tag signed by the owner
+- [ ] The relay SHOULD verify delegation proofs at write time
 
-**Audit:**
-- [ ] Every significant action MUST generate a kind:34003 event
-- [ ] The audit log MUST be append-only
+**Audit (required):**
+- [ ] Every significant DW action MUST produce a kind:34003 event
 - [ ] The relay MUST refuse DELETE and UPDATE on kind:34003
 
-**Constitutional HITL:**
-- [ ] Actions marked `hitl_required` MUST require a kind:10004 before execution
-- [ ] kind:10004 MUST be signed by the human's keypair (NIP-07 or custodial)
+**Constitutional HITL (required):**
+- [ ] Actions listed in `hitl_required` MUST NOT be executed without a valid kind:10004
+- [ ] kind:10004 MUST be signed by the owner's keypair (NIP-07 or custodial)
 
-**Human/DW Separation:**
-- [ ] The relay MUST reject kind:34002, 34005 events from `digital_worker` entities
-- [ ] No DW MAY modify the limits of its own authority
+**Human/DW separation (required):**
+- [ ] The relay MUST reject kind:34002 and kind:34005 events signed by `digital_worker` entities
+- [ ] No DW MAY issue events that modify its own authority
 
-**Revocation:**
-- [ ] kind:34005 MUST stop all tenant DWs within 30 seconds
-- [ ] Individual mandate revocation MUST be effective within 10 seconds
+**Revocation (required):**
+- [ ] Publishing kind:34005 MUST halt all tenant DWs within **30 seconds**
+- [ ] Revoking an individual kind:34002 MUST be effective within **10 seconds**
 
-**Optional protocol extensions:**
-- [ ] A2A Nostr-Native (if implemented): kinds 10010–10013 with correct tag structure
+**Optional extensions:**
+- [ ] A2A Nostr-Native (if implemented): kinds 10010–10013 with correct tag structure per KINDS.md
 - [ ] Cross-tenant federation (if implemented): kind:34001 `relay_hint` tag respected
-- [ ] Verifiable contracts (if implemented): `contract_hash = sha256(mandate+org_relation+kyc)` verifiable
+- [ ] Verifiable contracts (if implemented): `contract_hash = sha256(mandate_id + ":" + org_relation_id + ":" + kyc_claim_id)` verifiable from public relay data
+
+### Certification process
+
+A certified implementation MUST:
+
+1. Pass all mandatory checklist items above
+2. Provide a publicly accessible conformance test report (automated test suite or documented manual verification)
+3. Register via pull request to the [nodus-protocol repository](https://github.com/nodus-factory/nodus-protocol), adding an entry to the Certified Implementations table in SPEC.md
+
+Corporate KYC certification (kind:34010) and Nodus Relay registration procedures will be defined in a future revision of this specification.
 
 ---
 
@@ -905,11 +916,11 @@ An implementation is conformant with the Nodus Protocol if it meets the followin
 
 | Name | Vendor | Status | Since |
 |------|--------|--------|-------|
-| **Nodus OS** | Nodus Factory | Certified | v1.0 |
+| **Nodus OS** | [Nodus Factory](https://mynodus.com) | Certified | v1.0 |
 
 Nodus OS is the reference implementation of the Nodus Protocol. It is the first system to validate all conformance requirements in production.
 
-To register a new certified implementation, open a pull request adding it to this table with a link to a conformance test report.
+To register a new implementation, open a pull request adding it to this table with a link to a public conformance test report.
 
 ---
 
@@ -920,28 +931,28 @@ To register a new certified implementation, open a pull request adding it to thi
 | Term | Definition |
 |------|-----------|
 | **A2A** | Agent-to-Agent. Direct communication between Digital Workers. |
-| **A2A Nostr-Native** | A2A transport using kinds 10010–10013 via relay, no HTTP server. |
+| **A2A Nostr-Native** | A2A transport using kinds 10010–10013 via relay, without an HTTP server intermediary. |
 | **ACP** | Agent Communication Protocol. Persistent stateful sessions between agents. |
-| **Audit log** | Immutable record of all significant DW actions. Kind 34003. |
+| **Audit log** | Immutable, append-only record of all significant DW actions. Kind 34003. |
 | **Constitutional HITL** | Human approval that produces a cryptographic signature (kind:10004). |
-| **Cross-Enterprise HITL** | HITL approval from a human at a different organisation using their own keypair. |
-| **Delegation** | NIP-26 mechanism by which a human authorises a DW to act on their behalf. |
-| **DW** | Digital Worker. AI agent with identity, mandate, and defined limits. |
-| **Emergency-stop** | Kind 34005. Stops all DWs in a tenant within 30 seconds. |
+| **Cross-Enterprise HITL** | HITL approval from a human at a different organisation, using their own keypair and relay. |
+| **Delegation** | NIP-26 mechanism by which an owner authorises a DW to act on their behalf. |
+| **DW** | Digital Worker. An AI agent with a verifiable identity, a signed mandate, and defined operational limits. |
+| **Emergency-stop** | Kind 34005. Halts all DWs for a tenant within 30 seconds. |
 | **Federation** | Multi-relay architecture enabling DWs at different organisations to collaborate. |
-| **HITL** | Human-in-the-Loop. Human intervention in an agent workflow. |
+| **HITL** | Human-in-the-Loop. Human intervention in an agent workflow, with optional cryptographic proof. |
 | **KYC Corp Claim** | Verifiable link between a legal entity and its cryptographic identity. Kind 34010. |
-| **Mandate** | Signed document defining what a DW can and cannot do. Kind 34002. |
-| **MCP** | Model Context Protocol. Standard for connecting agents to external tools. |
-| **npub** | Nostr public key. Public identifier of an entity. |
-| **nsec** | Nostr private key. For DWs, SHOULD be held custodially. |
-| **NIP** | Nostr Implementation Proposal. Extension to the Nostr protocol. |
+| **Mandate** | Owner-signed document defining what a DW may and may not do. Kind 34002. Immutable. |
+| **MCP** | Model Context Protocol. Standard for connecting agents to external tools and services. |
+| **npub** | Nostr public key. Public identifier of any entity on the network. |
+| **nsec** | Nostr private key. For DWs, SHOULD be held custodially (Policy Relay or equivalent). |
+| **NIP** | Nostr Implementation Proposal. Extension or clarification of the Nostr protocol. |
 | **Nostr** | Decentralised protocol based on keypairs and relays. Governance foundation of the Nodus Protocol. |
-| **Policy Relay** | Extended Nostr relay acting as a Signing Service with mandate enforcement. |
-| **relay_hint** | Tag on kind:34001 advertising another organisation's relay address for federation. |
-| **Relay** | Nostr server that distributes events. |
-| **Tenant** | Organisation operating DWs under the Nodus Protocol. |
-| **Verifiable contract** | kind:34002 event whose `d` tag is `sha256(mandate+org_relation+kyc)`, verifiable by any third party. |
+| **Policy Relay** | Extended Nostr relay that acts as a Signing Service with mandate enforcement. The DW nsec never leaves it. |
+| **relay_hint** | Tag on kind:34001 advertising another organisation's relay address for federation discovery. |
+| **Relay** | A Nostr server that stores and distributes signed events. |
+| **Tenant** | An organisation operating one or more DWs under the Nodus Protocol. |
+| **Verifiable contract** | A kind:34002 event whose `d` tag equals `sha256(mandate_id + ":" + org_relation_id + ":" + kyc_claim_id)`, verifiable by any third party from public relay data. |
 
 ### B. Referenced Nostr NIPs
 
@@ -968,6 +979,14 @@ To register a new certified implementation, open a pull request adding it to thi
 | Google A2A | https://google.github.io/A2A |
 | MCP (Model Context Protocol) | https://modelcontextprotocol.io |
 
+### D. Changelog
+
+| Version | Date | Description |
+|---------|------|-------------|
+| v0.1 | March 2026 | First internal draft. 4 layers, kinds 34000–34010, graduated governance, conceptual Policy Relay. |
+| v0.2 | April 2026 | Release Candidate. Reference implementation available (M0–M13). A2A Nostr-native, multi-relay federation, public marketplace, cross-enterprise HITL, verifiable contracts. KINDS.md and FLOWS.md added. |
+| **v1.0** | **April 2026** | **First Public Release. Specification cleaned and decoupled from reference implementation. All implementation details moved to IMPLEMENTATION-GUIDE.md. FLOWS.md and KINDS.md use abstract roles. MUST/SHOULD/MAY conformance levels formalised per RFC 2119.** |
+
 ---
 
-*Nodus Protocol Working Group · nodus.social · CC BY 4.0*
+*Nodus Protocol Working Group · [nodus.social](https://nodus.social) · [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)*

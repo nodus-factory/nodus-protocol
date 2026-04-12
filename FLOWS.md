@@ -1,573 +1,361 @@
 # Nodus Protocol — Protocol Flows
 
-> **Protocol version:** v0.2  
-> **Status:** Release Candidate  
-> **Last updated:** April 2026  
-> **Reference implementation:** Nodus OS ADK (private)  
+> **Protocol version:** 1.0
+> **Status:** First Public Release
 > **License:** CC BY 4.0
 
-This document describes the primary protocol flows extracted directly from the reference implementation. Each flow includes the sequence diagram, involved kinds, and references to specific implementation files.
+This document describes the primary protocol flows. Each flow is defined in terms of abstract roles — **Initiator**, **Relay**, **Worker**, **Owner** — to remain independent of any specific implementation.
+
+For kind definitions and event structures, see [KINDS.md](KINDS.md).
+For implementation guidance, see [IMPLEMENTATION-GUIDE.md](IMPLEMENTATION-GUIDE.md).
 
 ---
 
-## Flow 1: Normal Work Session (M0–M3)
+## Roles
 
-**Components:** `nodus-llibreta-v2` (frontend), `nostr_adk_transport.py`, strfry relay  
-**Feature flags:** `NOSTR_ADK_TRANSPORT_V1`, optionally `NODUS_PROTOCOL_MANDATES_V1`, `NODUS_PROTOCOL_AUDIT_V1`
-
-```
-Human (frontend)                    Relay (strfry)            DW (nodus-adk-runtime)
-      │                                  │                           │
-      │  kind:10001 MESSAGE_USER          │                           │
-      │  tags: [p=DW, session, request]  │                           │
-      ├─────────────────────────────────►│                           │
-      │                                  │  EVENT → #p subscription  │
-      │                                  ├──────────────────────────►│
-      │                                  │                           │ _handle_message()
-      │                                  │                           │
-      │                                  │                           │ [if MANDATES_V1]
-      │                                  │◄──────────────────────────┤ REQ kind:34002 #d=DW
-      │                                  │  kind:34002 mandate       │
-      │                                  ├──────────────────────────►│ MandateService.get_active_mandate()
-      │                                  │                           │ → is_action_permitted()
-      │                                  │                           │
-      │                                  │                           │ runner.run_async() [streaming]
-      │                                  │                           │
-      │  kind:10006 STREAMING_CHUNK       │                           │ (per Part.text)
-      │◄─────────────────────────────────┤◄──────────────────────────┤
-      │  kind:10006 STREAMING_CHUNK       │                           │
-      │◄─────────────────────────────────┤◄──────────────────────────┤
-      │                                  │                           │
-      │                                  │                           │ [if AUDIT_V1]
-      │                                  │◄──────────────────────────┤ EVENT kind:34003 (audit)
-      │                                  │                           │
-      │  kind:10002 RESPONSE_DW           │                           │
-      │◄─────────────────────────────────┤◄──────────────────────────┤ (final accumulated response)
-```
-
-**Key implementation:**
-- `nostr_adk_transport.py` → `_listen_loop()` subscribes to kind:10001 with `#p` filter
-- `_handle_message()` calls `_build_agent_for_user()` + `runner.run_async()`
-- Per text chunk → `_publish(ws, KIND_STREAMING_CHUNK, text, base_tags)`
-- Final → `_publish(ws, KIND_RESPONSE_DW, full_response, final_tags)`
-- If `NODUS_PROTOCOL_DELEGATION_V1` active → all events carry `["delegation", owner_pubkey, conditions, sig]`
+| Role | Description |
+|------|-------------|
+| **Initiator** | Any entity (human or DW) that sends a task request |
+| **Worker** | A Digital Worker receiving and processing requests |
+| **Relay** | A Nostr relay enforcing write policies |
+| **Owner** | The human or organisation that authorises the Worker and signs governance events |
 
 ---
 
-## Flow 2: Constitutional HITL (M4)
+## Flow 1 — Normal Work Session
 
-**Components:** `nostr_adk_transport.py`, `nostr-hitl-signer.ts`, `use-constitutional-hitl.ts`  
-**Feature flags:** `NODUS_PROTOCOL_CONSTITUTIONAL_HITL_V1`
+**Kinds involved:** 10001, 10002, 10006, 34002 (optional), 34003 (optional)
+
+A human sends a task to a Worker. The Worker validates its mandate (if active), processes the task, streams partial responses, and publishes a final response. All significant actions are recorded in the audit log.
 
 ```
-Human                     Relay                      DW                    HITLService
-  │                         │                         │                        │
-  │  kind:10001              │                         │                        │
-  ├────────────────────────►│                         │                        │
-  │                         ├────────────────────────►│                        │
-  │                         │                         │ run_async() →          │
-  │                         │                         │ ToolConfirmation       │
-  │                         │                         │ detected               │
-  │                         │                         │                        │
-  │                         │                         │ create_event_async()   │
-  │                         │                         ├───────────────────────►│
-  │                         │                         │                        │ stores HITL
-  │                         │                         │                        │ (event_id=hitl_xxx)
-  │  kind:10003 HITL_REQUEST│                         │                        │
-  │◄────────────────────────┤◄────────────────────────┤                        │
-  │  content: {event_id,    │                         │                        │
-  │    action, description, │  kind:10002 (placeholder)                        │
-  │    input_type}          │◄────────────────────────┤                        │
-  │◄────────────────────────┤                         │                        │
-  │                         │                         │                        │
-  │ [user sees HitlInlineCard]                         │                        │
-  │ [NIP-07 available?]     │                         │                        │
-  │    → window.nostr.signEvent(kind:10004)            │                        │
-  │    or custodial → POST /api/nostr/hitl/respond     │                        │
-  │                         │                         │                        │
-  │  kind:10004 HITL_RESPONSE│                        │                        │
-  │  SIGNED by human         │                        │                        │
-  ├────────────────────────►│                         │                        │
-  │                         │                         │                        │
-  │                         │ [DW detects via HTTP SSE or polling]              │
-  │                         │                         │ validates signature    │
-  │                         │                         │                        │
-  │                         │                         │ [if AUDIT_V1]          │
-  │                         │◄────────────────────────┤ kind:34003             │
-  │                         │                         │ hitl_decision:approved │
+Initiator                          Relay                           Worker
+    │                                │                                │
+    │  EVENT kind:10001               │                                │
+    │  tags: [p=Worker, session,      │                                │
+    │         request, token?]        │                                │
+    ├───────────────────────────────►│                                │
+    │                                │  EVENT → #p subscription       │
+    │                                ├───────────────────────────────►│
+    │                                │                                │ receives MESSAGE_USER
+    │                                │                                │
+    │                                │                                │ [mandate active?]
+    │                                │◄───────────────────────────────┤ REQ kinds:[34002]
+    │                                │  kind:34002 mandate            │
+    │                                ├───────────────────────────────►│ validate: permitted?
+    │                                │                                │
+    │                                │                                │ process task
+    │                                │                                │   (streaming)
+    │  EVENT kind:10006               │                                │
+    │  STREAMING_CHUNK                │◄───────────────────────────────┤ (per chunk)
+    │◄───────────────────────────────┤                                │
+    │  EVENT kind:10006               │                                │
+    │◄───────────────────────────────┤◄───────────────────────────────┤
+    │                                │                                │
+    │                                │                                │ [audit active?]
+    │                                │◄───────────────────────────────┤ EVENT kind:34003
+    │                                │                                │
+    │  EVENT kind:10002               │                                │
+    │  RESPONSE_DW (final)            │◄───────────────────────────────┤
+    │◄───────────────────────────────┤                                │
 ```
 
-**Key implementation:**
-- `_detect_and_handle_hitl()` in `nostr_adk_transport.py` — inspects `session.events[-5:]` for `ToolConfirmation`
-- `hitl_service.create_event_async()` — registers with existing HITLService (HTTP v1)
-- `_publish(ws, KIND_HITL_REQUEST, json.dumps({...}), base_tags)` — publishes kind:10003
-- Frontend: `use-constitutional-hitl.ts` → `respond(requestEventId, approved, sessionId)`
-  - NIP-07: `window.nostr.signEvent(event)` → `POST /api/nostr/hitl/respond-signed`
-  - Custodial: `POST /api/nostr/hitl/respond` → `nostr-hitl-signer.ts:signAndPublishHitlResponse()`
+**Mandate validation (if active):**
+1. Worker fetches kind:34002 with `#d = Worker pubkey`
+2. Checks `valid_from ≤ now` and `valid_until = null OR > now`
+3. Checks capability is in `capabilities` and not in `limits`
+4. If capability is in `hitl_required` → proceeds to Flow 2 (HITL) before acting
+5. If no valid mandate found → Worker MUST refuse the action
 
-**Custodial signing detail (`nostr-hitl-signer.ts`):**
-```typescript
-const eventTemplate = {
-  kind: 10004,
-  created_at: Math.floor(Date.now() / 1000),
-  tags: [
-    ['request', requestEventId],
-    ['session', sessionId],
-    ['approved', approved ? 'true' : 'false'],
-  ],
-  content: approved ? 'approved' : 'rejected',
-};
-const signed = finalizeEvent(eventTemplate, secretKeyBytes);
-```
+**Delegation (if active):**
+All events published by the Worker carry a `["delegation", owner_pubkey, conditions, sig]` tag — a NIP-26 proof that the Owner authorised this Worker to act.
 
 ---
 
-## Flow 3: Emergency Stop (M5)
+## Flow 2 — Constitutional HITL
 
-**Components:** `nostr-emergency-service.ts`, `emergency-routes.ts`, `nostr_adk_transport.py`  
-**Feature flags:** `NODUS_PROTOCOL_EMERGENCY_V1`
+**Kinds involved:** 10001, 10002, 10003, 10004, 34003
+
+The Worker encounters an action in `hitl_required`. It publishes a HITL request, suspends execution, and waits for a cryptographically signed human approval before proceeding.
 
 ```
-Admin (Backoffice)        Relay                      DW (polling every 30s)
-       │                    │                              │
-       │  POST /api/emergency/stop                        │
-       │  { reason: "Suspicious activity" }               │
-       │                    │                              │
-       │  publishEmergencyStop()                          │
-       │  kind:34005         │                              │
-       │  tags: [d=tenant,  │                              │
-       │    tenant=tenant_id]│                             │
-       ├───────────────────►│                              │
-       │                    │                              │
-       │  { event_id, ts }  │                              │
-       │◄───────────────────┤                              │
-       │                    │  (asyncio polling task)      │
-       │                    │                              │ _emergency_polling_loop()
-       │                    │                              │ → asyncio.sleep(30)
-       │                    │                              │ → _query_emergency_stop(tenant_id)
-       │                    │◄─────────────────────────────┤
-       │                    │  REQ {kinds:[34005,34006],   │
-       │                    │       #tenant:[tenant_id]}   │
-       │                    ├──────────────────────────────►
-       │                    │  EVENT kind:34005            │
-       │                    ├──────────────────────────────►
-       │                    │  EOSE                        │
-       │                    ├──────────────────────────────►
-       │                    │                              │ self._emergency_active = True
-       │                    │                              │
-       │                    │     [new kind:10001 arrives] │
-       │                    ├─────────────────────────────►│ _handle_message()
-       │                    │                              │ → if self._emergency_active: return
-       │                    │                              │   (message discarded)
-       │                    │                              │
-  [Admin resumes]           │                              │
-       │  POST /api/emergency/resume                       │
-       │  kind:34006         │                              │
-       ├───────────────────►│                              │
-       │                    │  (next polling cycle)        │
-       │                    │                              │ latest_resume_at > latest_stop_at
-       │                    │                              │ self._emergency_active = False
+Initiator              Relay                Worker              Owner client
+    │                    │                    │                      │
+    │  kind:10001         │                    │                      │
+    ├───────────────────►│                    │                      │
+    │                    ├───────────────────►│                      │
+    │                    │                    │ detects hitl_required │
+    │                    │                    │                      │
+    │                    │                    │ suspend execution     │
+    │                    │◄───────────────────┤ EVENT kind:10003      │
+    │  kind:10003         │                    │ HITL_REQUEST          │
+    │  HITL_REQUEST       │                    │                      │
+    │◄───────────────────┤                    │                      │
+    │                    │                    │                      │
+    │ [shows approval UI]│                    │                      │
+    │                    │                    │                      │
+    │                    │                    │ REQ kinds:[10004]     │
+    │                    │                    │ #request=<10003.id>   │
+    │                    │◄───────────────────┤                      │
+    │                    │                    │                      │
+    │                    │                    │ waiting...            │
+    │                    │                    │                      │
+    │ Owner signs         │                    │                      │
+    │ kind:10004 via      │                    │                      │
+    │ NIP-07 or custodial │                    │                      │
+    │                    │◄──────────────────────────────────────────┤
+    │                    │  EVENT kind:10004  │                      │
+    │                    │  HITL_RESPONSE     │                      │
+    │                    │  signed by Owner   │                      │
+    │                    ├───────────────────►│                      │
+    │                    │                    │ verify signature      │
+    │                    │                    │ check approved=true   │
+    │                    │                    │                      │
+    │                    │                    │ [audit: hitl_decision]│
+    │                    │◄───────────────────┤ EVENT kind:34003      │
+    │                    │                    │                      │
+    │                    │                    │ resume execution      │
+    │                    │◄───────────────────┤ EVENT kind:10002      │
+    │  kind:10002         │                    │ RESPONSE_DW           │
+    │◄───────────────────┤                    │                      │
 ```
 
-**Key implementation:**
-- `_emergency_polling_loop()` → asyncio task launched at `start()` if `NODUS_PROTOCOL_EMERGENCY_V1`
-- `_query_emergency_stop()` → REQ/EOSE pattern, returns `True` if `latest_stop_at > latest_resume_at`
-- `_handle_message()` → first line: `if self._emergency_active: return`
+**Cryptographic proof of authority:**
+The kind:10004 event is signed with the Owner's private key. Any third party can verify — without consulting any server — that a human with authorised keys approved this specific action, at this specific time, referencing this specific HITL request.
+
+**If rejected (approved=false):**
+The Worker publishes a kind:10002 explaining the refusal and records `hitl_decision:rejected` in the audit log.
 
 ---
 
-## Flow 4: Policy Relay — Delegated Signing (M8)
+## Flow 3 — A2A Request (Worker-to-Worker)
 
-**Components:** `policy_relay_server.py`, `nostr_adk_transport.py`  
-**Feature flags:** `NODUS_POLICY_RELAY_V1` + `NODUS_POLICY_RELAY_URL`
+**Kinds involved:** 10010, 10011, 10012, 10013
+
+One Worker delegates a subtask to another Worker, fully via the relay. No HTTP intermediary is involved.
 
 ```
-DW (NostrAdkTransport)       Policy Relay (WebSocket)         Relay (strfry)
-        │                           │                               │
-        │ [NODUS_POLICY_RELAY_V1]   │                               │
-        │ _publish() called         │                               │
-        │                           │                               │
-        │  WS: {"id":"...",          │                               │
-        │  "method":"sign_event",   │                               │
-        │  "params":{               │                               │
-        │    "event": {unsigned},   │                               │
-        │    "dw_pubkey":"<hex>"    │                               │
-        │  }}                       │                               │
-        ├──────────────────────────►│                               │
-        │                           │ get_dw_nsec(dw_pubkey)        │
-        │                           │ (from NODUS_DW_NSEC_MAP)      │
-        │                           │                               │
-        │                           │ _check_mandate_log_only()     │
-        │                           │ (M8.1: observational)         │
-        │                           │                               │
-        │                           │ _sign_event(unsigned, nsec)   │
-        │                           │ → _NostrSigner.create_signed_event()
-        │                           │                               │
-        │  {"id":"...",             │                               │
-        │   "result": {signed_event}}                               │
-        │◄──────────────────────────┤                               │
-        │                           │                               │
-        │  WS: ["EVENT", signed]    │                               │
-        ├───────────────────────────┼──────────────────────────────►│
-        │                           │  ["OK", event_id, true]       │
-        │◄──────────────────────────┼───────────────────────────────┤
+Worker A (Sender)              Relay                  Worker B (Receiver)
+      │                          │                           │
+      │  EVENT kind:10010         │                           │
+      │  A2A_REQUEST              │                           │
+      │  tags: [p=WorkerB,        │                           │
+      │   request_id, action,     │                           │
+      │   mandate?]               │                           │
+      ├─────────────────────────►│                           │
+      │                          │  EVENT → #p subscription  │
+      │                          ├──────────────────────────►│
+      │                          │                           │ processes subtask
+      │                          │                           │   (streaming)
+      │  kind:10012 A2A_STREAM    │                           │
+      │◄─────────────────────────┤◄──────────────────────────┤ (per chunk, done=false)
+      │  kind:10012 A2A_STREAM    │                           │
+      │◄─────────────────────────┤◄──────────────────────────┤ (final chunk, done=true)
+      │                          │                           │
+      │  kind:10011 A2A_RESPONSE  │                           │
+      │◄─────────────────────────┤◄──────────────────────────┤ (final result)
 ```
 
-**Policy Relay WS protocol (request):**
-```json
-{
-  "id": "<req_uuid>",
-  "method": "sign_event",
-  "params": {
-    "event": {
-      "pubkey": "<dw_pubkey_hex>",
-      "created_at": 1714000000,
-      "kind": 10002,
-      "tags": [["p", "<user_hex>"], ["session", "<id>"]],
-      "content": "DW response"
-    },
-    "dw_pubkey": "<dw_pubkey_hex>"
-  }
-}
-```
+**Error path:**
+If Worker B cannot process the request, it publishes kind:10013 (A2A_ERROR) with an `error` field in the content JSON.
 
-**Policy Relay WS protocol (response):**
-```json
-{
-  "id": "<req_uuid>",
-  "result": {
-    "id": "<event_id_sha256>",
-    "pubkey": "<dw_pubkey_hex>",
-    "created_at": 1714000000,
-    "kind": 10002,
-    "tags": [...],
-    "content": "...",
-    "sig": "<schnorr_sig>"
-  }
-}
-```
-
-Or on rejection:
-```json
-{
-  "id": "<req_uuid>",
-  "error": "mandate_violation: action not permitted"
-}
-```
-
-**Key implementation:**
-- `policy_relay_server.py` listens on WebSocket at port `POLICY_RELAY_PORT` (default 8080)
-- `nsec_map` loaded from `NODUS_DW_NSEC_MAP` (JSON) or `POLICY_RELAY_NSEC_<PUBKEY>` (individual)
-- `nostr_adk_transport.py`: `if self._policy_relay_client:` → `await self._policy_relay_client.sign_event(unsigned)`
-- If Policy Relay rejects → `PolicyRelayError` → message discarded (no fallback to direct signing)
-
-**Security guarantee (v0.2):** The DW's `nsec` never leaves the Policy Relay. It is physically impossible for the DW to publish events not authorised by the relay.
+**Mandate reference:**
+The `["mandate", "<kind:34002_event_id>"]` tag on kind:10010 is OPTIONAL but RECOMMENDED when Worker A is acting under a known mandate scope. Worker B MAY require it.
 
 ---
 
-## Flow 5: A2A Nostr-Native (M9, v0.2)
+## Flow 4 — Async HITL (Inbox)
 
-**Components:** `a2a_nostr_v2.py`  
-**Feature flags:** `NODUS_A2A_NOSTR_V2`
+**Kinds involved:** 10020, 10021
 
-```
-DW A (client)                    Relay                    DW B (listener)
-     │                             │                            │
-     │  A2ANostrV2Client.send_task()│                           │
-     │  request_id = uuid8         │                           │
-     │                             │                           │  A2ANostrV2Listener.listen()
-     │                             │                           │  REQ {kinds:[10010], #p=[DW_B]}
-     │                             │◄──────────────────────────┤
-     │                             │                           │
-     │  EVENT kind:10010           │                           │
-     │  tags: [p=DW_B, session,    │                           │
-     │    request_id, action]      │                           │
-     │  content: {action, params}  │                           │
-     ├────────────────────────────►│                           │
-     │                             │  EVENT kind:10010         │
-     │                             ├──────────────────────────►│
-     │  REQ {kinds:[10011,10013],  │                           │ task_handler(action, params, session)
-     │    #p=[DW_A], since=now-5}  │                           │
-     ├────────────────────────────►│                           │
-     │                             │                           │
-     │                             │                           │ EVENT kind:10011
-     │                             │                           │ tags: [p=DW_A, request_id, session]
-     │                             │                           │ content: {result: ...}
-     │                             │◄──────────────────────────┤
-     │  EVENT kind:10011           │                           │
-     │◄────────────────────────────┤                           │
-     │  json.loads(content) =      │                           │
-     │  {"result": ...}            │                           │
-```
-
-**Streaming A2A (kind:10012):**
-```
-DW B → kind:10012 (chunk, done=false)
-DW B → kind:10012 (chunk, done=false)
-DW B → kind:10011 (final) or kind:10012 (done=true)
-DW A → receives all chunks via AsyncIterator
-```
-
-**Key implementation (`a2a_nostr_v2.py`):**
-```python
-# Client: publish + await response
-await ws.send(json.dumps(["EVENT", signed_event]))
-await ws.send(json.dumps(["REQ", sub_id, {
-    "kinds": [KIND_A2A_RESPONSE, KIND_A2A_ERROR],
-    "#p": [self.sender_pubkey_hex],
-    "since": int(time.time()) - 5,
-}]))
-
-# Server: listen + execute
-sub_id = f"a2a-listen-{self.dw_pubkey_hex[:8]}"
-await ws.send(json.dumps(["REQ", sub_id, {
-    "kinds": [KIND_A2A_REQUEST],
-    "#p": [self.dw_pubkey_hex],
-    "since": int(time.time()),
-}]))
-```
-
-**Comparison: A2A HTTP v1 vs A2A Nostr-Native (v0.2)**
-
-| Aspect | A2A HTTP v1 | A2A Nostr-Native v0.2 |
-|--------|-------------|----------------------|
-| Transport | HTTP POST → server → DW B | kind:10010 at relay |
-| Dependency | nodus-adk-runtime HTTP server | None (relay only) |
-| Audit | Manual kind:34003 | Automatic (events are immutable) |
-| Cross-tenant | Via federation HTTP | Via relay_hint + kind:34001 |
-| Signing | DW nsec or Policy Relay | Policy Relay (M8) |
-
----
-
-## Flow 6: Cross-Tenant Federation (M10 + M12, v0.2)
-
-**Components:** `relay_federation.py`, `cross_tenant_hitl.py`  
-**Feature flags:** `NODUS_FEDERATION_V2`, `NODUS_CROSS_TENANT_HITL_V2`
-
-### 6a: Federated Relay Discovery
+An asynchronous approval request — originating from a cron job, graph trigger, or long-running process — that does not occur within an active conversation thread. The Owner resolves it at their own pace via an inbox interface.
 
 ```
-DW Tenant A                     Local Relay A
-     │                                │
-     │  RelayFederation.discover_federation_relays()
-     │                                │
-     │  REQ {kinds:[34001], limit:50} │
-     ├───────────────────────────────►│
-     │                                │
-     │  EVENT kind:34001 (with relay_hint + tenant)
-     │◄───────────────────────────────┤
-     │  EVENT kind:34001 ...          │
-     │◄───────────────────────────────┤
-     │  EOSE                          │
-     │◄───────────────────────────────┤
-     │                                │
-     │  self._known_relays =          │
-     │  {"tenant-b": "wss://relay.b.example"}
-```
-
-**Relay discovery from kind:34001:**  
-Any org-relation event with a `relay_hint` tag teaches the DW about a new federated relay. The `federation_scope` tag (`read-only | delegate | full`) defines the allowed interaction level.
-
-### 6b: Cross-Tenant HITL (M12)
-
-```
-DW Nodus (Tenant A)        Relay A         Relay B (Tenant B)      Human Tenant B
-        │                    │                    │                       │
-        │  kind:10003 HITL   │                    │                       │
-        ├───────────────────►│                    │                       │
-        │                    │                    │                       │
-        │  CrossTenantHitlBridge.bridge_hitl_request()                    │
-        │  federation.publish_to_federation(event, "tenant-b")            │
-        │                    │  EVENT kind:10003  │                       │
-        ├────────────────────┼───────────────────►│                       │
-        │                    │                    │  Human sees kind:10003│
-        │                    │                    │◄──────────────────────┤
-        │  federation.subscribe_from_federation() │                       │
-        │  (kinds:[10004], #p=[DW_A])             │                       │
-        ├────────────────────┼───────────────────►│                       │
-        │                    │                    │                       │
-        │                    │                    │  Human signs kind:10004
-        │                    │                    │◄──────────────────────┤
-        │                    │                    │                       │
-        │  _handle_external_response()            │                       │
-        │◄───────────────────┼────────────────────┤                       │
-        │                    │                    │                       │
-        │  _is_authorized_human(responder_pubkey) │                       │
-        │  REQ {kinds:[34001], #p=[responder]}    │                       │
-        ├───────────────────►│                    │                       │
-        │  (verifies responder appears in 34001 cross-tenant)             │
-        │◄───────────────────┤                    │                       │
-        │                    │                    │                       │
-        │  on_response(response_event) → DW continues
-```
-
-**Authorisation validation (`cross_tenant_hitl.py`):**
-```python
-async def _is_authorized_human(self, pubkey_hex: str) -> bool:
-    # REQ {kinds:[34001], "#p":[pubkey_hex], "limit":5}
-    # Returns True if any 34001 event mentions this pubkey
-    # The responder must appear in a cross-tenant org-relation
-```
-
-**Key design:** the human from company B uses **their own app and keypair** — no Nodus account required. Validation is purely cryptographic via the relay.
-
----
-
-## Flow 7: Verifiable Contract (M13, v0.2)
-
-**Components:** `nostr-contract-service.ts`
-
-```
-Admin (Backoffice)              Relay                      Third Party (auditor)
-       │                           │                              │
-       │  1. kind:34002 exists (mandate)                         │
-       │  2. kind:34001 exists (org_relation)                    │
-       │  3. Publishes kind:34010 (KYC claim)                    │
-       │  POST /api/kyc-claims/publish                           │
-       ├──────────────────────────►│                              │
-       │                           │                              │
-       │  POST /api/contracts/generate                           │
-       │  { dw_id, mandate_event_id,                             │
-       │    org_relation_event_id,                               │
-       │    kyc_claim_event_id }                                  │
-       │                           │                              │
-       │  contract_hash = sha256(  │                              │
-       │    mandate_id + ":" +     │                              │
-       │    org_relation_id + ":"+ │                              │
-       │    kyc_claim_id           │                              │
-       │  )                        │                              │
-       │                           │                              │
-       │  EVENT kind:34002         │                              │
-       │  (contract, d=hash,       │                              │
-       │   "e" refs to mandate,    │                              │
-       │   org-relation, kyc-claim)│                              │
-       ├──────────────────────────►│                              │
-       │                           │                              │
-       │  { contract_hash,         │                              │
-       │    nostr_uri: "nostr:event:<hash>" }                     │
-       │◄──────────────────────────┤                              │
-       │                           │                              │
-       │                           │  GET /api/contracts/verify/:hash
-       │                           │◄─────────────────────────────┤
-       │                           │  REQ {kinds:[34002],         │
-       │                           │       "#d":[contract_hash]}  │
-       │                           │                              │
-       │                           │  EVENT → verifies:           │
-       │                           │  content.contract_hash == hash?
-       │                           │  valid_until not expired?    │
-       │                           │──────────────────────────────►
-       │                           │  { valid: true, details: ... }
-```
-
-**Contract hash computation (`nostr-contract-service.ts`):**
-```typescript
-const contractHashInput = [mandateEventId, orgRelationEventId, kycClaimEventId ?? ""].join(":");
-const contractHash = crypto.createHash("sha256").update(contractHashInput).digest("hex");
-```
-
-**Contract event tags:**
-```typescript
-const tags = [
-  ["d", contractHash],
-  ["p", dwPubkeyHex],
-  ["e", mandateEventId, "", "mandate"],
-  ["e", orgRelationEventId, "", "org-relation"],
-  ["e", kycClaimEventId, "", "kyc-claim"],   // optional
-  ["t", "nodus-contract"],
-  ["expiration", String(validUntil)],        // optional
-];
-```
-
-**What any third party can verify (without trusting Nodus):**
-1. Fetch kind:34002 `#d=<contract_hash>` from the relay
-2. Verify the three `e` tags point to real events
-3. Recompute `sha256(mandate_id + ":" + org_relation_id + ":" + kyc_claim_id)` — must match
-4. Verify owner signature on each event (BIP-340 Schnorr)
-5. Check `expiration` tag if present
-
-**Human-readable statement example:**
-> *"Nodus Factory SL (reg. B12345678, ES) has authorised Digital Worker `npub1abc...` to perform [send_email, read_calendar, orchestrate] subject to HITL for financial actions, effective from 2026-04-01 with no expiry."*
-
----
-
-## Flow 8: NIP-26 Delegation (M3)
-
-**Components:** `nip26.py`, `nostr_adk_transport.py`  
-**Feature flags:** `NODUS_PROTOCOL_DELEGATION_V1` + `NOSTR_OWNER_NSEC`
-
-```
-[On NostrAdkTransport initialisation]
-
-Owner (NOSTR_OWNER_NSEC)          DW (NOSTR_AGENT_NSEC)
-        │                               │
-        │  create_delegation_token(     │
-        │    owner_nsec,                │
-        │    delegatee=DW_pubkey,       │
-        │    allowed_kinds=[10001,10002,│
-        │      10003,10004,10006],      │
-        │    valid_seconds=86400*30     │
-        │  )                            │
-        │                               │
-        │  delegation_string =          │
-        │  "nostr:delegation:<DW_pubkey>:<conditions>"
-        │  conditions = "kind=10001&kind=10002&...&created_at>T0&created_at<T1"
-        │                               │
-        │  sig = schnorr_sign(sha256(delegation_string), owner_sk)
-        │                               │
-        │  self._delegation_tag =       │
-        │  ["delegation", owner_pubkey_hex, conditions, sig_hex]
-        │──────────────────────────────►│
-        │                               │
-        │  [For each published event]   │
-        │                               │
-        │  tags = base_tags + [self._delegation_tag]
-        │  event signed by DW_nsec with delegation tag
-        │                               │
-        │  [Third-party verification]   │
-        │                               │
-        │  verify_delegation_token(     │
-        │    delegation_tag,            │
-        │    delegatee=DW_pubkey,       │
-        │    event_kind=10002,          │
-        │    event_created_at=T         │
-        │  )                            │
-        │  → verifies: kind in allowed? │
-        │  → verifies: T0 < T < T1?    │
-        │  → verifies: schnorr_verify(sha256(delegation_string), owner_pubkey, sig)
-```
-
-**Delegation tag format (NIP-26 standard):**
-```json
-["delegation",
- "<owner_pubkey_hex>",
- "kind=10001&kind=10002&kind=10003&kind=10004&kind=10006&created_at>1714000000&created_at<1716592000",
- "<sig_hex>"
-]
-```
-
-**Key implementation (`nip26.py`):**
-```python
-delegation_string = f"nostr:delegation:{delegatee_pubkey_hex}:{conditions}"
-msg_bytes = hashlib.sha256(delegation_string.encode()).digest()
-sig_bytes = _schnorr_sign(msg_bytes, owner_sk_bytes, aux_rand)
-delegation_tag = ["delegation", owner_pubkey_hex, conditions, sig_hex]
+Worker / Cron              Relay                   Owner (inbox)
+      │                      │                          │
+      │  EVENT kind:10020     │                          │
+      │  INBOX_ITEM           │                          │
+      │  tags: [p=Owner,      │                          │
+      │   session, action]    │                          │
+      ├─────────────────────►│                          │
+      │                      │  persisted on relay       │
+      │                      │                          │
+      │                      │  [Owner polls/subscribes] │
+      │                      ├─────────────────────────►│
+      │                      │  kind:10020              │
+      │                      │                          │ Owner reviews in inbox
+      │                      │                          │ signs kind:10021
+      │                      │◄─────────────────────────┤
+      │                      │  EVENT kind:10021         │
+      │                      │  INBOX_RESOLVED           │
+      │                      │  tags: [request=10020.id, │
+      │                      │   approved=true]          │
+      │ [Worker polls/        │                          │
+      │  subscribes]          │                          │
+      │◄─────────────────────┤                          │
+      │  kind:10021           │                          │
+      │ validates + proceeds  │                          │
 ```
 
 ---
 
-## Flow Summary
+## Flow 5 — Emergency Stop
 
-| Flow | Kinds involved | Feature flags | Status |
-|------|----------------|---------------|--------|
-| 1. Normal session | 10001, 10002, 10006 | `NOSTR_ADK_TRANSPORT_V1` | ✅ Prod |
-| 2. Constitutional HITL | 10001, 10002, 10003, 10004 | `NODUS_PROTOCOL_CONSTITUTIONAL_HITL_V1` | ✅ Impl |
-| 3. Emergency Stop | 34005, 34006 | `NODUS_PROTOCOL_EMERGENCY_V1` | ✅ Impl |
-| 4. Policy Relay | all kinds | `NODUS_POLICY_RELAY_V1` | ✅ Impl |
-| 5. A2A Nostr-Native | 10010, 10011, 10012, 10013 | `NODUS_A2A_NOSTR_V2` | ✅ Impl |
-| 6. Cross-Tenant Federation | 34001, 10003, 10004 | `NODUS_FEDERATION_V2`, `NODUS_CROSS_TENANT_HITL_V2` | ✅ Impl |
-| 7. Verifiable Contract | 34002, 34010 | M13 implicit | ✅ Impl |
-| 8. NIP-26 Delegation | all | `NODUS_PROTOCOL_DELEGATION_V1` | ✅ Impl |
+**Kinds involved:** 34005, 34006
+
+The Owner publishes a halt signal. All Workers belonging to the tenant detect it within 30 seconds and discard all incoming requests until a resume signal is received.
+
+```
+Owner                    Relay                   Worker(s)
+  │                        │                        │
+  │  EVENT kind:34005       │                        │ [polling every 30s]
+  │  EMERGENCY_STOP         │                        │ REQ kinds:[34005,34006]
+  │  tags: [d=tenant_id,    │                        │ #tenant=[tenant_id]
+  │   tenant=tenant_id]     │                        │
+  ├──────────────────────►│                        │
+  │                        ├───────────────────────►│
+  │                        │  kind:34005             │ latest_stop_at > latest_resume_at
+  │                        │                        │ → EMERGENCY ACTIVE
+  │                        │                        │ → discard all kind:10001
+  │                        │                        │
+  │ [... time passes ...]  │                        │
+  │                        │                        │
+  │  EVENT kind:34006       │                        │
+  │  EMERGENCY_RESUME       │                        │
+  ├──────────────────────►│                        │
+  │                        ├───────────────────────►│
+  │                        │  kind:34006             │ latest_resume_at > latest_stop_at
+  │                        │                        │ → EMERGENCY CLEARED
+  │                        │                        │ → resume normal operation
+```
+
+**Timing requirement:** Workers MUST detect kind:34005 and halt within **30 seconds** of publication.
+
+**Only the Owner can publish kind:34005 and kind:34006.** The relay MUST reject these events from Workers (verified via kind:34000 `entity_type` field).
 
 ---
 
-*Nodus Factory · © 2026 · Reference Implementation of the Nodus Protocol (CC BY 4.0)*
+## Flow 6 — Mandate Creation
+
+**Kinds involved:** 34000, 34001, 34002
+
+The Owner establishes a Worker's governance context: publishes the Worker's identity relationship and signs its mandate.
+
+```
+Owner client                  Relay                    Worker
+    │                           │                         │
+    │  [Worker publishes        │                         │
+    │   its own profile]        │                         │
+    │                           │◄────────────────────────┤ EVENT kind:34000
+    │                           │  DW_PROFILE              │ entity_type: digital_worker
+    │                           │                         │
+    │  EVENT kind:34001          │                         │
+    │  ORG_RELATION              │                         │
+    │  signed by Owner           │                         │
+    ├──────────────────────────►│                         │
+    │                           │                         │
+    │  EVENT kind:34002          │                         │
+    │  MANDATE                   │                         │
+    │  signed by Owner           │                         │
+    ├──────────────────────────►│                         │
+    │                           │                         │
+    │                           │  [Worker fetches        │
+    │                           │   kind:34002 on startup]│
+    │                           ├────────────────────────►│
+    │                           │  kind:34002              │ mandate loaded ✓
+```
+
+**Immutability:** The relay MUST reject any DELETE or UPDATE on kind:34002 and kind:34003. Once signed and published, a mandate cannot be altered — only superseded by a new version with a different `d` tag value.
+
+---
+
+## Flow 7 — Cross-Tenant HITL (Federation)
+
+**Kinds involved:** 10003, 10004, 34001 (cross-tenant)
+
+A Worker belonging to Tenant A requires approval from a human at Tenant B. The approval is cryptographically tied to the approver's keypair — no shared infrastructure needed.
+
+```
+Worker (Tenant A)     Relay A            Relay B           Owner (Tenant B)
+      │                  │                  │                     │
+      │  kind:10003       │                  │                     │
+      │  HITL_REQUEST     │                  │                     │
+      │  (cross-tenant)   │                  │                     │
+      ├─────────────────►│                  │                     │
+      │                  │  [federation     │                     │
+      │                  │   bridge relays  │                     │
+      │                  │   to Relay B]    │                     │
+      │                  ├─────────────────►│                     │
+      │                  │                  ├────────────────────►│
+      │                  │                  │  kind:10003          │ [approval UI shown]
+      │                  │                  │                     │
+      │                  │                  │◄────────────────────┤ kind:10004
+      │                  │                  │  HITL_RESPONSE       │ signed by Owner B
+      │                  │◄─────────────────┤                     │
+      │◄─────────────────┤                  │                     │
+      │ validate:         │                  │                     │
+      │ - sig valid?      │                  │                     │
+      │ - pubkey in       │                  │                     │
+      │   cross-tenant    │                  │                     │
+      │   kind:34001?     │                  │                     │
+      │ proceed ✓         │                  │                     │
+```
+
+**Authorisation prerequisite:** Tenant A's relay MUST have a kind:34001 (`org-relation`) event identifying the Tenant B approver's pubkey as authorised for cross-tenant HITL. Without it, the Worker MUST reject the kind:10004 even if the signature is valid.
+
+---
+
+## Flow 8 — Public Marketplace Discovery
+
+**Kinds involved:** 34000, 34001, 34010
+
+An organisation discovers available Workers on the public Nodus relay and verifies their identity before delegating work.
+
+```
+Organisation (buyer)          Public Relay              Worker operator
+      │                           │                           │
+      │  REQ kinds:[34000]         │                           │
+      │  #t=["nodus-dw"]           │                           │
+      ├──────────────────────────►│                           │
+      │                           │  [Worker profiles]        │
+      │◄──────────────────────────┤  kind:34000 (marketplace) │
+      │                           │  per Worker               │
+      │  [inspect capabilities,   │                           │
+      │   limits, nodus_version]   │                           │
+      │                           │                           │
+      │  REQ kinds:[34010]         │                           │
+      │  #t=["nodus-kyc"]          │                           │
+      ├──────────────────────────►│                           │
+      │◄──────────────────────────┤  kind:34010 KYC claim     │
+      │                           │                           │
+      │  [verify legal entity,     │                           │
+      │   jurisdiction,            │                           │
+      │   registration number]     │                           │
+      │                           │                           │
+      │  [compute contract hash]   │                           │
+      │  sha256(mandate_id +       │                           │
+      │   org_relation_id +        │                           │
+      │   kyc_claim_id)            │                           │
+      │  → verifiable offline ✓    │                           │
+```
+
+**Verifiable contract:** Any third party (auditor, regulator, counterparty) can compute the contract hash offline from public relay data, without access to any private system.
+
+---
+
+## Summary Table
+
+| Flow | Trigger | Key kinds | HITL? | Audit? |
+|------|---------|-----------|-------|--------|
+| 1 — Normal session | Human sends task | 10001, 10002, 10006, 34002, 34003 | No | Yes (optional) |
+| 2 — Constitutional HITL | Action in `hitl_required` | 10003, 10004, 34003 | Yes | Yes |
+| 3 — A2A request | Worker delegates subtask | 10010, 10011, 10012, 10013 | No | Optional |
+| 4 — Async inbox HITL | Cron / background trigger | 10020, 10021 | Yes (async) | Optional |
+| 5 — Emergency stop | Owner halts tenant | 34005, 34006 | No | Implicit |
+| 6 — Mandate creation | Owner provisions Worker | 34000, 34001, 34002 | No | No |
+| 7 — Cross-tenant HITL | External org approval | 10003, 10004, 34001 | Yes (cross-org) | Yes |
+| 8 — Marketplace discovery | Buyer finds Workers | 34000, 34010 | No | No |
+
+---
+
+*Nodus Protocol Working Group · CC BY 4.0*

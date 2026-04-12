@@ -1,19 +1,24 @@
 # Nodus Protocol — Event Kinds Reference
 
-> **Protocol version:** 1.0  
-> **Status:** First Public Release  
+> **Protocol version:** 1.0
+> **Status:** First Public Release
 > **License:** CC BY 4.0
 
-This document is the canonical reference for all Nostr event kinds used in the Nodus Protocol.
+This document is the canonical reference for all Nostr event kinds defined by the Nodus Protocol. Each kind specifies its layer, publisher role, required and optional fields, and a normative JSON structure.
+
+For protocol flows using these kinds, see [FLOWS.md](FLOWS.md).
+For implementation guidance, see [IMPLEMENTATION-GUIDE.md](IMPLEMENTATION-GUIDE.md).
 
 ---
 
 ## Layer Convention
 
-| Range | Layer | NIP base |
-|-------|-------|----------|
-| `10001–10021` | **Session Layer** — operational messaging between agents and humans | NIP-16 (replaceable) |
+| Range | Layer | NIP basis |
+|-------|-------|-----------|
+| `10001–10021` | **Session Layer** — operational messaging between Workers and humans | NIP-16 (ephemeral/replaceable) |
 | `34000–34010` | **Governance Layer** — identity, mandates, audit, emergency controls | NIP-33 (parameterized replaceable) |
+
+All events MUST be signed with BIP-340 Schnorr signatures over secp256k1, as defined by NIP-01.
 
 ---
 
@@ -23,39 +28,35 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Value |
 |-------|-------|
-| **Name** | `MESSAGE_USER` |
-| **Layer** | Session Layer |
-| **Publisher** | Human |
+| **Layer** | Session |
+| **Publisher** | Initiator (human or DW) |
+| **Direction** | Initiator → Worker |
 
-**Description:** User message directed at a specific DW. The DW listens via `#p` subscription on the relay.
+**Description:** A task request directed at a specific Worker. The Worker subscribes via a `#p` filter on its own pubkey.
 
-**DW subscription filter:**
-```json
-["REQ", "<sub_id>", {
-  "kinds": [10001],
-  "#p": ["<dw_pubkey_hex>"],
-  "since": "<unix_ts - 30>"
-}]
-```
-
-**Event structure:**
 ```json
 {
-  "id": "<sha256 of serialised>",
-  "pubkey": "<user_pubkey_hex>",
-  "created_at": 1714000000,
   "kind": 10001,
+  "pubkey": "<initiator_pubkey_hex>",
+  "created_at": 1714000000,
   "tags": [
-    ["p", "<dw_pubkey_hex>"],
+    ["p", "<worker_pubkey_hex>"],
     ["session", "<session_uuid>"],
-    ["request", "<request_uuid>"]
+    ["request", "<request_uuid>"],
+    ["token", "<auth_token_optional>"]
   ],
-  "content": "Send an email to alice@example.com with the meeting summary",
+  "content": "<task description>",
   "sig": "<schnorr_sig_hex>"
 }
 ```
 
-**Required tags:** `p` (target DW), `session`, `request`
+**Required tags:** `p` (target Worker), `session`, `request`
+**Optional tags:** `token` (authentication credential for the Worker)
+
+**Worker subscription filter:**
+```json
+{"kinds": [10001], "#p": ["<worker_pubkey_hex>"], "since": <now - 30>}
+```
 
 ---
 
@@ -63,32 +64,31 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Value |
 |-------|-------|
-| **Name** | `RESPONSE_DW` |
-| **Layer** | Session Layer |
-| **Publisher** | DW |
+| **Layer** | Session |
+| **Publisher** | Worker |
+| **Direction** | Worker → Initiator |
 
-**Description:** Final accumulated DW response. Always preceded by zero or more kind:10006 streaming chunks.
+**Description:** The final, accumulated response from the Worker after processing a kind:10001. Always preceded by zero or more kind:10006 streaming chunks.
 
 ```json
 {
-  "id": "<sha256>",
-  "pubkey": "<dw_pubkey_hex>",
-  "created_at": 1714000001,
   "kind": 10002,
+  "pubkey": "<worker_pubkey_hex>",
+  "created_at": 1714000001,
   "tags": [
-    ["p", "<user_pubkey_hex>"],
+    ["p", "<initiator_pubkey_hex>"],
     ["session", "<session_uuid>"],
     ["request", "<request_uuid>"],
-    ["agent", "<agent_name>"],
-    ["delegation", "<owner_pubkey>", "<conditions>", "<sig>"]
+    ["agent", "<agent_identifier>"],
+    ["delegation", "<owner_pubkey_hex>", "<conditions_string>", "<delegation_sig_hex>"]
   ],
-  "content": "I sent the email to alice@example.com.",
+  "content": "<response text>",
   "sig": "<schnorr_sig_hex>"
 }
 ```
 
-**Required tags:** `p`, `session`, `request`, `agent`  
-**Optional tags:** `delegation` (when NIP-26 delegation is active)
+**Required tags:** `p`, `session`, `request`, `agent`
+**Conditional tags:** `delegation` — REQUIRED when NIP-26 delegation is active (see SPEC.md §5.4)
 
 ---
 
@@ -96,24 +96,24 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Value |
 |-------|-------|
-| **Name** | `HITL_REQUEST` |
-| **Layer** | Session Layer |
-| **Publisher** | DW |
+| **Layer** | Session |
+| **Publisher** | Worker |
+| **Direction** | Worker → Owner |
 
-**Description:** Human approval request. Published when the DW determines an action requires human authorisation per its mandate. The DW pauses execution and waits for kind:10004.
+**Description:** A request for human approval before executing an action. Published when the Worker encounters an action listed in `hitl_required` in its mandate. Execution is suspended until a valid kind:10004 is received.
 
 ```json
 {
-  "id": "<sha256>",
-  "pubkey": "<dw_pubkey_hex>",
-  "created_at": 1714000002,
   "kind": 10003,
+  "pubkey": "<worker_pubkey_hex>",
+  "created_at": 1714000002,
   "tags": [
-    ["p", "<user_pubkey_hex>"],
+    ["p", "<owner_pubkey_hex>"],
     ["session", "<session_uuid>"],
-    ["request", "<request_uuid>"]
+    ["request", "<request_uuid>"],
+    ["delegation", "<owner_pubkey_hex>", "<conditions_string>", "<delegation_sig_hex>"]
   ],
-  "content": "{\"event_id\":\"hitl_a3b4c5d6e7f8\",\"action\":\"send_email\",\"description\":\"Send email to alice@example.com\",\"input_type\":\"text\",\"choices\":null,\"urgency\":\"normal\"}",
+  "content": "{\"event_id\":\"hitl_<12hex>\",\"action\":\"<action_name>\",\"description\":\"<human_readable_description>\",\"input_type\":\"text\",\"choices\":null,\"urgency\":\"normal\"}",
   "sig": "<schnorr_sig_hex>"
 }
 ```
@@ -122,12 +122,12 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `event_id` | `string` | Internal HITL ID (`hitl_<12hex>`) |
-| `action` | `string` | Action name requiring approval |
-| `description` | `string` | Human-readable request text |
-| `input_type` | `"text"\|"choice"` | Expected response type |
-| `choices` | `string[]\|null` | Options if `input_type=choice` |
-| `urgency` | `"normal"\|"high"` | Urgency level |
+| `event_id` | `string` | Unique HITL identifier (`hitl_<12hex>`) |
+| `action` | `string` | Tool or function name requiring approval |
+| `description` | `string` | Human-readable description of the pending action |
+| `input_type` | `"text" \| "choice"` | Expected response format |
+| `choices` | `string[] \| null` | Available options when `input_type = "choice"` |
+| `urgency` | `"normal" \| "high"` | Urgency level |
 
 ---
 
@@ -135,34 +135,36 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Value |
 |-------|-------|
-| **Name** | `HITL_RESPONSE` |
-| **Layer** | Session Layer |
-| **Publisher** | Human |
+| **Layer** | Session |
+| **Publisher** | Owner (human) |
+| **Direction** | Owner → Worker |
 
-**Description:** Human response to a kind:10003. Cryptographically signed by the human. Constitutes the **cryptographic proof** of the human decision.
+**Description:** The Owner's cryptographically signed response to a kind:10003 request. This event constitutes the **verifiable proof of human authority**: it is signed with the Owner's private key and permanently recorded.
 
 ```json
 {
-  "id": "<sha256>",
-  "pubkey": "<human_pubkey_hex>",
-  "created_at": 1714000010,
   "kind": 10004,
+  "pubkey": "<owner_pubkey_hex>",
+  "created_at": 1714000010,
   "tags": [
     ["request", "<kind:10003_event_id>"],
     ["session", "<session_uuid>"],
     ["approved", "true"]
   ],
   "content": "approved",
-  "sig": "<schnorr_sig_hex_of_human>"
+  "sig": "<schnorr_sig_hex_of_owner>"
 }
 ```
 
-**Required tags:** `request` (reference to kind:10003), `approved` (`"true"` or `"false"`)  
+**Required tags:** `request` (references the kind:10003 event id), `approved` (`"true"` or `"false"`)
 **`content`:** `"approved"` or `"rejected"`
 
 **Signing methods:**
-- **NIP-07:** `window.nostr.signEvent(event)` — via browser extension (Alby, nos2x, etc.)
-- **Custodial:** server-side signing with user's encrypted keypair
+- **NIP-07:** `window.nostr.signEvent(event)` via a browser extension — the Owner's private key never leaves the browser
+- **Custodial:** server-side signing with the Owner's AES-256-GCM encrypted keypair
+
+**Verification (any third party):**
+Verify the Schnorr signature over `SHA-256(serializeEvent(event))` using `event.pubkey`. Confirm `event.pubkey` matches the Owner's known pubkey.
 
 ---
 
@@ -170,11 +172,11 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Value |
 |-------|-------|
-| **Name** | `RESPONSE_AGENT` |
-| **Layer** | Session Layer |
-| **Publisher** | Agent (internal A2A) |
+| **Layer** | Session |
+| **Publisher** | Internal agent |
+| **Direction** | Agent A → Agent B (internal) |
 
-**Description:** Response from one agent to another in synchronous A2A communication. Different from kinds 10010–10013 which is Nostr-native A2A.
+**Description:** A response from one internal sub-agent to another within a single Worker's processing pipeline, using HTTP transport (A2A v1). Distinct from kinds 10010–10013, which are Nostr-native A2A for inter-Worker communication.
 
 ```json
 {
@@ -194,24 +196,23 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Value |
 |-------|-------|
-| **Name** | `STREAMING_CHUNK` |
-| **Layer** | Session Layer |
-| **Publisher** | DW |
+| **Layer** | Session |
+| **Publisher** | Worker |
+| **Direction** | Worker → Initiator |
 
-**Description:** Real-time streaming chunk. Allows the client to display the DW response progressively before the final kind:10002 is published.
+**Description:** A real-time partial response chunk. Implementations MAY publish zero or more of these before kind:10002. Clients SHOULD display chunks progressively to reduce perceived latency.
 
 ```json
 {
-  "id": "<sha256>",
-  "pubkey": "<dw_pubkey_hex>",
-  "created_at": 1714000001,
   "kind": 10006,
+  "pubkey": "<worker_pubkey_hex>",
+  "created_at": 1714000001,
   "tags": [
-    ["p", "<user_pubkey_hex>"],
+    ["p", "<initiator_pubkey_hex>"],
     ["session", "<session_uuid>"],
     ["request", "<request_uuid>"]
   ],
-  "content": "I sent the email",
+  "content": "<partial response text>",
   "sig": "<schnorr_sig_hex>"
 }
 ```
@@ -222,29 +223,31 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Value |
 |-------|-------|
-| **Name** | `A2A_REQUEST` |
-| **Layer** | Session Layer — A2A sublayer |
-| **Publisher** | Sender DW |
+| **Layer** | Session — A2A sublayer |
+| **Publisher** | Sending Worker |
+| **Direction** | Worker A → Worker B |
 
-**Description:** Task execution request from one DW to another DW, 100% via Nostr relay, without an HTTP server intermediary.
+**Description:** A task delegation request from one Worker to another, routed entirely via the relay. No HTTP server is required on the receiving Worker.
 
 ```json
 {
-  "id": "<sha256>",
-  "pubkey": "<dw_a_pubkey_hex>",
-  "created_at": 1714000020,
   "kind": 10010,
+  "pubkey": "<worker_a_pubkey_hex>",
+  "created_at": 1714000020,
   "tags": [
-    ["p", "<dw_b_pubkey_hex>"],
+    ["p", "<worker_b_pubkey_hex>"],
     ["session", "<session_uuid>"],
-    ["request_id", "<8char_uuid>"],
-    ["action", "summarize_document"],
+    ["request_id", "<8char_id>"],
+    ["action", "<action_name>"],
     ["mandate", "<kind:34002_event_id_optional>"]
   ],
-  "content": "{\"action\":\"summarize_document\",\"params\":{\"doc_id\":\"abc123\",\"lang\":\"en\"}}",
+  "content": "{\"action\":\"<action_name>\",\"params\":{<params_json>}}",
   "sig": "<schnorr_sig_hex>"
 }
 ```
+
+**Required tags:** `p` (target Worker), `session`, `request_id`, `action`
+**Optional tags:** `mandate` (reference to the authorising mandate)
 
 ---
 
@@ -252,21 +255,23 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Value |
 |-------|-------|
-| **Name** | `A2A_RESPONSE` |
-| **Layer** | Session Layer — A2A sublayer |
-| **Publisher** | Receiver DW |
+| **Layer** | Session — A2A sublayer |
+| **Publisher** | Receiving Worker |
+| **Direction** | Worker B → Worker A |
+
+**Description:** The final result of a kind:10010 request. Always preceded by zero or more kind:10012 streaming chunks.
 
 ```json
 {
   "kind": 10011,
-  "pubkey": "<dw_b_pubkey_hex>",
+  "pubkey": "<worker_b_pubkey_hex>",
   "created_at": 1714000025,
   "tags": [
-    ["p", "<dw_a_pubkey_hex>"],
-    ["request_id", "<8char_uuid>"],
+    ["p", "<worker_a_pubkey_hex>"],
+    ["request_id", "<8char_id>"],
     ["session", "<session_uuid>"]
   ],
-  "content": "{\"result\": \"The document is about...\"}",
+  "content": "{\"result\": \"<result_data>\"}",
   "sig": "<schnorr_sig_hex>"
 }
 ```
@@ -277,18 +282,23 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Value |
 |-------|-------|
-| **Name** | `A2A_STREAM` |
-| **Layer** | Session Layer — A2A sublayer |
-| **Publisher** | Receiver DW |
+| **Layer** | Session — A2A sublayer |
+| **Publisher** | Receiving Worker |
+| **Direction** | Worker B → Worker A |
 
-**Description:** Streaming chunk in an A2A response. `content.done = true` signals the final chunk.
+**Description:** A streaming chunk in an A2A response. `content.done = true` indicates the final chunk, after which kind:10011 MUST follow.
 
 ```json
 {
   "kind": 10012,
-  "pubkey": "<dw_b_pubkey_hex>",
-  "tags": [["p", "<dw_a_pubkey_hex>"], ["request_id", "<id>"], ["session", "<id>"]],
-  "content": "{\"chunk\": \"The document is about\", \"done\": false}"
+  "pubkey": "<worker_b_pubkey_hex>",
+  "tags": [
+    ["p", "<worker_a_pubkey_hex>"],
+    ["request_id", "<8char_id>"],
+    ["session", "<session_uuid>"]
+  ],
+  "content": "{\"chunk\": \"<partial result>\", \"done\": false}",
+  "sig": "<schnorr_sig_hex>"
 }
 ```
 
@@ -298,16 +308,23 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Value |
 |-------|-------|
-| **Name** | `A2A_ERROR` |
-| **Layer** | Session Layer — A2A sublayer |
-| **Publisher** | Receiver DW |
+| **Layer** | Session — A2A sublayer |
+| **Publisher** | Receiving Worker |
+| **Direction** | Worker B → Worker A |
+
+**Description:** Published when Worker B cannot fulfil a kind:10010 request. The sending Worker SHOULD surface the error to the Initiator and record it in the audit log.
 
 ```json
 {
   "kind": 10013,
-  "pubkey": "<dw_b_pubkey_hex>",
-  "tags": [["p", "<dw_a_pubkey_hex>"], ["request_id", "<id>"], ["session", "<id>"]],
-  "content": "{\"error\": \"Document not found: abc123\"}"
+  "pubkey": "<worker_b_pubkey_hex>",
+  "tags": [
+    ["p", "<worker_a_pubkey_hex>"],
+    ["request_id", "<8char_id>"],
+    ["session", "<session_uuid>"]
+  ],
+  "content": "{\"error\": \"<error_description>\"}",
+  "sig": "<schnorr_sig_hex>"
 }
 ```
 
@@ -317,22 +334,23 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Value |
 |-------|-------|
-| **Name** | `INBOX_ITEM` |
-| **Layer** | Session Layer — Async HITL sublayer |
-| **Publisher** | DW |
+| **Layer** | Session — Async HITL sublayer |
+| **Publisher** | Worker or background process |
+| **Direction** | Worker → Owner |
 
-**Description:** Asynchronous approval request. Used for actions initiated outside of an active conversation (scheduled jobs, long-running processes). Accumulates in an inbox for the owner.
+**Description:** An asynchronous approval request, originating outside an active conversation (e.g. from a scheduled job or graph trigger). Accumulates in the Owner's inbox until resolved.
 
 ```json
 {
   "kind": 10020,
-  "pubkey": "<dw_pubkey_hex>",
+  "pubkey": "<worker_pubkey_hex>",
   "tags": [
     ["p", "<owner_pubkey_hex>"],
     ["session", "<uuid>"],
     ["action", "<action_name>"]
   ],
-  "content": "<description of pending action>"
+  "content": "<description of pending action>",
+  "sig": "<schnorr_sig_hex>"
 }
 ```
 
@@ -342,23 +360,24 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 | Field | Value |
 |-------|-------|
-| **Name** | `INBOX_RESOLVED` |
-| **Layer** | Session Layer — Async HITL sublayer |
-| **Publisher** | Human |
+| **Layer** | Session — Async HITL sublayer |
+| **Publisher** | Owner (human) |
+| **Direction** | Owner → (all subscribers) |
+
+**Description:** The Owner's resolution of a kind:10020 inbox item. Signed by the Owner's keypair.
 
 ```json
 {
-  "id": "<sha256>",
-  "pubkey": "<human_pubkey_hex>",
-  "created_at": 1714000050,
   "kind": 10021,
+  "pubkey": "<owner_pubkey_hex>",
+  "created_at": 1714000050,
   "tags": [
     ["request", "<kind:10020_event_id>"],
     ["approved", "true"],
-    ["p", "<dw_pubkey_hex_optional>"]
+    ["p", "<worker_pubkey_hex_optional>"]
   ],
   "content": "approved",
-  "sig": "<schnorr_sig_hex>"
+  "sig": "<schnorr_sig_hex_of_owner>"
 }
 ```
 
@@ -366,7 +385,11 @@ This document is the canonical reference for all Nostr event kinds used in the N
 
 ## Governance Layer (kinds 34000–34010)
 
-All Governance Layer kinds are **parameterized replaceable events** (NIP-33). The `["d", "<identifier>"]` tag defines the unique identifier within a pubkey+kind pair.
+All Governance Layer kinds are **parameterized replaceable events** (NIP-33). The `["d", "<identifier>"]` tag defines the unique key within a `(pubkey, kind)` pair.
+
+**Relay write policy requirements** (MUST be enforced):
+- Relays MUST reject DELETE and UPDATE on kind:34002 and kind:34003
+- Relays MUST reject kind:34002 and kind:34005 events published by entities with `entity_type: "digital_worker"`
 
 ---
 
@@ -374,24 +397,22 @@ All Governance Layer kinds are **parameterized replaceable events** (NIP-33). Th
 
 | Field | Value |
 |-------|-------|
-| **Name** | `nodus:dw-profile` / `nodus:human-profile` |
-| **Layer** | Governance Layer — Identity |
-| **Publisher** | DW (for DW profiles) / Human client (for human profiles) |
+| **Layer** | Governance — Identity |
+| **Publisher** | Worker (for DW profiles) or Owner client (for human profiles) |
 
-**Description:** Full actor profile (DW or human). Contains capabilities, available transports, and metadata.
+**Description:** The identity profile of a Worker or human at the relay. Published on startup and updated when capabilities change. For marketplace discovery, a simplified version is published to the public relay with tag `["t", "nodus-dw"]`.
 
 **DW Profile:**
 ```json
 {
-  "id": "<sha256>",
-  "pubkey": "<dw_pubkey_hex>",
-  "created_at": 1714000000,
   "kind": 34000,
+  "pubkey": "<worker_pubkey_hex>",
+  "created_at": 1714000000,
   "tags": [
-    ["d", "<dw_pubkey_hex>"],
-    ["p", "<owner_pubkey_hex_optional>"]
+    ["d", "<worker_pubkey_hex>"],
+    ["p", "<owner_pubkey_hex>"]
   ],
-  "content": "{\"name\":\"Athena\",\"description\":\"Root orchestrator agent\",\"owner\":\"<owner_hex>\",\"entity_type\":\"digital_worker\",\"capabilities\":[\"orchestrate\",\"email\"],\"limits\":[],\"transports\":[{\"type\":\"nostr-session\",\"relay\":\"ws://relay.example\",\"kinds\":[10001]}],\"nodus_version\":\"1.0\"}",
+  "content": "{\"name\":\"<worker_name>\",\"description\":\"<description>\",\"owner\":\"<owner_pubkey_hex>\",\"tenant\":\"<tenant_id>\",\"entity_type\":\"digital_worker\",\"capabilities\":[\"<capability_1>\",\"<capability_2>\"],\"limits\":[],\"transports\":[{\"type\":\"nostr-session\",\"relay\":\"<relay_wss_url>\",\"kinds\":[10001]}],\"nodus_version\":\"1.0\"}",
   "sig": "<schnorr_sig_hex>"
 }
 ```
@@ -400,29 +421,28 @@ All Governance Layer kinds are **parameterized replaceable events** (NIP-33). Th
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | `string` | DW display name |
+| `name` | `string` | Worker display name |
 | `description` | `string` | Human-readable description |
-| `owner` | `string\|null` | Owner pubkey hex |
-| `entity_type` | `"digital_worker"\|"human"` | Entity type (REQUIRED) |
+| `owner` | `string \| null` | Owner pubkey hex |
+| `tenant` | `string \| null` | Tenant identifier |
+| `entity_type` | `"digital_worker" \| "human"` | Entity type — used by relay for write policy enforcement |
 | `capabilities` | `string[]` | Declared capabilities |
 | `limits` | `string[]` | Declared limitations |
-| `transports` | `Transport[]` | Available communication channels |
-| `nodus_version` | `string` | Protocol version (`"1.0"`) |
+| `transports` | `Transport[]` | Available communication endpoints |
+| `nodus_version` | `string` | Protocol version (e.g. `"1.0"`) |
 
-**Public discovery profile (opt-in):**
+**Marketplace profile** (published to public relay):
 ```json
 {
   "kind": 34000,
   "tags": [
-    ["d", "<dw_pubkey_hex>"],
-    ["p", "<dw_pubkey_hex>"],
+    ["d", "<worker_pubkey_hex>"],
+    ["p", "<worker_pubkey_hex>"],
     ["t", "nodus-dw"]
   ],
-  "content": "{\"name\":\"Athena\",\"about\":\"Root orchestrator\",\"nodus_version\":\"1.0\",\"capabilities\":[\"orchestrate\",\"email\"],\"limits\":[]}"
+  "content": "{\"name\":\"<worker_name>\",\"about\":\"<description>\",\"nodus_version\":\"1.0\",\"capabilities\":[\"<capability_1>\"],\"limits\":[]}"
 }
 ```
-
-Discovery query (public relay): `{"kinds": [34000], "#t": ["nodus-dw"]}`
 
 ---
 
@@ -430,38 +450,37 @@ Discovery query (public relay): `{"kinds": [34000], "#t": ["nodus-dw"]}`
 
 | Field | Value |
 |-------|-------|
-| **Name** | `nodus:org-relation` |
-| **Layer** | Governance Layer — Hierarchy |
+| **Layer** | Governance — Hierarchy |
 | **Publisher** | Owner |
 
-**Description:** Declares the `OwnerOf` hierarchical relationship between an Owner and a DW. Signed by the owner. Used for federation discovery via `relay_hint` tag.
+**Description:** Declares the ownership relationship between an Owner and a Worker. Signed by the Owner. Used for NIP-26 delegation verification and cross-tenant federation discovery.
 
 ```json
 {
-  "id": "<sha256>",
+  "kind": 34001,
   "pubkey": "<owner_pubkey_hex>",
   "created_at": 1714000000,
-  "kind": 34001,
   "tags": [
-    ["d", "<owner_pubkey_hex>-<dw_pubkey_hex>"],
-    ["p", "<dw_pubkey_hex>"]
+    ["d", "<owner_pubkey_hex>-<worker_pubkey_hex>"],
+    ["p", "<worker_pubkey_hex>"],
+    ["tenant", "<tenant_id>"]
   ],
-  "content": "{\"relation\":\"OwnerOf\",\"subject\":\"<owner_pubkey_hex>\",\"object\":\"<dw_pubkey_hex>\",\"nodus_version\":\"1.0\"}",
-  "sig": "<schnorr_sig_hex_owner>"
+  "content": "{\"relation\":\"OwnerOf\",\"subject\":\"<owner_pubkey_hex>\",\"object\":\"<worker_pubkey_hex>\",\"tenant\":\"<tenant_id>\",\"nodus_version\":\"1.0\"}",
+  "sig": "<schnorr_sig_hex_of_owner>"
 }
 ```
 
-**Cross-tenant federation variant:**
+**Cross-tenant federation extension:**
 ```json
 {
   "kind": 34001,
   "tags": [
-    ["d", "<owner_hex>-<external_dw_hex>"],
-    ["p", "<external_dw_pubkey_hex>"],
-    ["relay_hint", "wss://relay.org-b.example"],
+    ["d", "<owner_hex>-<external_worker_hex>"],
+    ["p", "<external_worker_pubkey_hex>"],
+    ["tenant", "<remote_tenant_id>"],
+    ["relay_hint", "wss://<remote_relay_url>"],
     ["federation_scope", "delegate"]
-  ],
-  "content": "..."
+  ]
 }
 ```
 
@@ -473,24 +492,22 @@ Discovery query (public relay): `{"kinds": [34000], "#t": ["nodus-dw"]}`
 
 | Field | Value |
 |-------|-------|
-| **Name** | `nodus:policy` |
-| **Layer** | Governance Layer — Mandate |
+| **Layer** | Governance — Mandate |
 | **Publisher** | Owner |
 
-**Description:** Mandate defining exactly what the DW can and cannot do. **Immutable**: the relay MUST reject any DELETE or UPDATE. Signed by the owner.
+**Description:** The mandate defining what a Worker may and may not do. Signed by the Owner. **Immutable**: relays MUST reject any DELETE or UPDATE. A mandate cannot be altered after signing — only superseded by a new event with a different `d` tag value.
 
 ```json
 {
-  "id": "<sha256>",
+  "kind": 34002,
   "pubkey": "<owner_pubkey_hex>",
   "created_at": 1714000000,
-  "kind": 34002,
   "tags": [
-    ["d", "<dw_pubkey_hex>"],
-    ["p", "<dw_pubkey_hex>"]
+    ["d", "<worker_pubkey_hex>"],
+    ["p", "<worker_pubkey_hex>"]
   ],
-  "content": "{\"dw\":\"<dw_pubkey_hex>\",\"capabilities\":[\"send_email\",\"read_calendar\",\"orchestrate\"],\"limits\":[\"no_delete_without_confirmation\"],\"hitl_required\":[\"send_email\",\"delete_*\",\"financial_*\"],\"auto_approve\":[\"read_calendar\"],\"max_auto_cost_eur\":0,\"valid_from\":1714000000,\"valid_until\":null,\"nodus_version\":\"1.0\"}",
-  "sig": "<schnorr_sig_hex_owner>"
+  "content": "{\"dw\":\"<worker_pubkey_hex>\",\"tenant\":\"<tenant_id>\",\"capabilities\":[\"<action_1>\",\"<action_2>\"],\"limits\":[\"<restriction>\"],\"hitl_required\":[\"<action_requiring_approval>\"],\"auto_approve\":[\"<always_approved_action>\"],\"max_auto_cost_eur\":0,\"valid_from\":1714000000,\"valid_until\":null,\"nodus_version\":\"1.0\"}",
+  "sig": "<schnorr_sig_hex_of_owner>"
 }
 ```
 
@@ -498,21 +515,22 @@ Discovery query (public relay): `{"kinds": [34000], "#t": ["nodus-dw"]}`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `dw` | `string` | DW pubkey hex |
-| `capabilities` | `string[]` | Permitted actions (wildcards: `delete_*`) |
-| `limits` | `string[]` | Explicit restrictions |
-| `hitl_required` | `string[]` | Actions requiring human approval |
-| `auto_approve` | `string[]` | Always auto-approved (overrides `hitl_required`) |
-| `max_auto_cost_eur` | `number` | Maximum auto-approved cost in EUR |
-| `valid_from` | `number` | Unix timestamp — validity start |
-| `valid_until` | `number\|null` | Unix timestamp — validity end (null = indefinite) |
+| `dw` | `string` | Worker pubkey hex |
+| `tenant` | `string \| null` | Tenant identifier |
+| `capabilities` | `string[]` | Permitted actions (wildcards supported: `delete_*`) |
+| `limits` | `string[]` | Explicit prohibitions |
+| `hitl_required` | `string[]` | Actions requiring human approval before execution |
+| `auto_approve` | `string[]` | Actions always auto-approved (overrides `hitl_required`) |
+| `max_auto_cost_eur` | `number` | Maximum cost the Worker may incur without approval |
+| `valid_from` | `number` | Unix timestamp — start of validity |
+| `valid_until` | `number \| null` | Unix timestamp — end of validity (`null` = indefinite) |
 | `nodus_version` | `string` | Protocol version |
 
-> **Critical relay rule:** Relays MUST reject any DELETE or UPDATE on kind:34002.
+> **Critical relay rule:** Relays MUST refuse DELETE and UPDATE on kind:34002. A mandate has no compliance value if it can be erased.
 
-**Mandate query by DW:**
+**Mandate lookup:**
 ```json
-{"kinds": [34002], "#d": ["<dw_pubkey_hex>"], "limit": 1}
+{"kinds": [34002], "#d": ["<worker_pubkey_hex>"], "limit": 1}
 ```
 
 ---
@@ -521,36 +539,36 @@ Discovery query (public relay): `{"kinds": [34000], "#t": ["nodus-dw"]}`
 
 | Field | Value |
 |-------|-------|
-| **Name** | `nodus:audit-event` |
-| **Layer** | Governance Layer — Audit |
-| **Publisher** | DW |
+| **Layer** | Governance — Audit |
+| **Publisher** | Worker |
 
-**Description:** Immutable, append-only audit record. The `d` tag is `sha256(dw_pubkey + session_id + timestamp_ms)` to guarantee uniqueness. The relay MUST block overwrites.
+**Description:** An immutable, append-only record of a significant action. The `d` tag is computed as `SHA-256(worker_pubkey + session_id + timestamp_ms)` to guarantee uniqueness. Relays MUST block overwrites.
 
 ```json
 {
-  "id": "<sha256>",
-  "pubkey": "<dw_pubkey_hex>",
-  "created_at": 1714000010,
   "kind": 34003,
+  "pubkey": "<worker_pubkey_hex>",
+  "created_at": 1714000010,
   "tags": [
-    ["d", "<sha256_of_dw+session+ts_ms>"],
-    ["p", "<user_npub_hex_or_empty>"],
-    ["mandate", "<kind:34002_event_id_or_none>"],
+    ["d", "<sha256(worker_pubkey + session_id + timestamp_ms)>"],
+    ["p", "<user_pubkey_hex>"],
+    ["mandate", "<kind:34002_event_id>"],
     ["session", "<session_uuid>"],
-    ["action", "agent_response"]
+    ["action", "<action_name>"],
+    ["tenant", "<tenant_id>"]
   ],
-  "content": "{\"action\":\"agent_response\",\"result_hash\":\"<sha256_of_result>\",\"timestamp\":1714000010,\"dw\":\"<dw_pubkey_hex>\",\"session_id\":\"<uuid>\",\"mandate_ref\":\"<event_id_or_null>\"}",
+  "content": "{\"action\":\"<action_name>\",\"result_hash\":\"<sha256_of_result>\",\"timestamp\":<unix_ts>,\"dw\":\"<worker_pubkey_hex>\",\"user\":\"<user_pubkey_hex>\",\"tenant\":\"<tenant_id>\",\"session_id\":\"<uuid>\",\"mandate_ref\":\"<event_id_or_null>\"}",
   "sig": "<schnorr_sig_hex>"
 }
 ```
 
-**Action variants:**
-- `agent_response` — final agent response
-- `hitl_request:<action>` — HITL request published
-- `hitl_decision:approved` / `hitl_decision:rejected` — human decision received
+**Standard `action` values:**
+- `agent_response` — Worker published a final response
+- `hitl_request:<action>` — HITL approval requested
+- `hitl_decision:approved` / `hitl_decision:rejected` — human decision recorded
+- `mandate_check:permitted` / `mandate_check:denied` — mandate validation outcome
 
-> **Critical relay rule:** Relays MUST reject any DELETE or UPDATE on kind:34003.
+> **Critical relay rule:** Relays MUST refuse DELETE and UPDATE on kind:34003. The audit log is append-only by design.
 
 ---
 
@@ -558,18 +576,18 @@ Discovery query (public relay): `{"kinds": [34000], "#t": ["nodus-dw"]}`
 
 | Field | Value |
 |-------|-------|
-| **Name** | `nodus:mcp-server-profile` |
-| **Layer** | Governance Layer — MCP |
-| **Publisher** | MCP Gateway |
+| **Layer** | Governance — MCP |
+| **Publisher** | MCP Gateway operator |
 
-**Description:** MCP Gateway profile. DWs MUST verify this profile before calling any tool via the gateway.
+**Description:** Identity profile of an MCP Gateway. Workers SHOULD verify this profile before invoking tools, to confirm the gateway is authorised by their Owner.
 
 ```json
 {
   "kind": 34004,
   "pubkey": "<mcp_gateway_pubkey_hex>",
   "tags": [["d", "<gateway_identifier>"]],
-  "content": "{\"name\":\"Example MCP Gateway\",\"url\":\"https://mcp.example.org\",\"tools\":[\"calendar\",\"email\",\"drive\"],\"owner\":\"<owner_pubkey_hex>\",\"authorized_dws\":[\"<dw_pubkey_hex>\"],\"valid_until\":null}"
+  "content": "{\"name\":\"<gateway_name>\",\"url\":\"<gateway_url>\",\"tools\":[\"<tool_1>\",\"<tool_2>\"],\"owner\":\"<owner_pubkey_hex>\",\"authorized_dws\":[\"<worker_pubkey_1>\",\"<worker_pubkey_2>\"],\"valid_until\":null}",
+  "sig": "<schnorr_sig_hex>"
 }
 ```
 
@@ -579,24 +597,24 @@ Discovery query (public relay): `{"kinds": [34000], "#t": ["nodus-dw"]}`
 
 | Field | Value |
 |-------|-------|
-| **Name** | `nodus:emergency-stop` |
-| **Layer** | Governance Layer — Emergency |
+| **Layer** | Governance — Emergency |
 | **Publisher** | Owner |
 
-**Description:** Emergency halt order. DWs MUST poll every 30 seconds; if a kind:34005 more recent than the last kind:34006 is detected, the DW MUST discard all new messages.
+**Description:** An emergency halt for all Workers in a tenant. Workers poll for this event every 30 seconds. If a kind:34005 is more recent than the last kind:34006, Workers MUST discard all incoming messages.
+
+**Only the Owner MAY publish this event.** Relays MUST reject kind:34005 events from Workers (`entity_type: "digital_worker"`).
 
 ```json
 {
-  "id": "<sha256>",
+  "kind": 34005,
   "pubkey": "<owner_pubkey_hex>",
   "created_at": 1714000100,
-  "kind": 34005,
   "tags": [
     ["d", "<tenant_id>"],
     ["tenant", "<tenant_id>"]
   ],
-  "content": "{\"tenant\":\"<tenant_id>\",\"reason\":\"Suspicious activity detected\",\"authorized_by\":\"<owner_npub>\"}",
-  "sig": "<schnorr_sig_hex_owner>"
+  "content": "{\"tenant\":\"<tenant_id>\",\"reason\":\"<reason>\",\"authorized_by\":\"<owner_pubkey_hex>\"}",
+  "sig": "<schnorr_sig_hex_of_owner>"
 }
 ```
 
@@ -613,19 +631,21 @@ Discovery query (public relay): `{"kinds": [34000], "#t": ["nodus-dw"]}`
 
 | Field | Value |
 |-------|-------|
-| **Name** | `nodus:emergency-resume` |
-| **Layer** | Governance Layer — Emergency |
+| **Layer** | Governance — Emergency |
 | **Publisher** | Owner |
 
-**Description:** Resumes DW activity. MUST be more recent than the last kind:34005 to deactivate the emergency.
+**Description:** Resumes normal Worker operation for a tenant after an emergency stop. MUST be more recent than the last kind:34005 to clear the emergency state.
 
 ```json
 {
   "kind": 34006,
   "pubkey": "<owner_pubkey_hex>",
-  "tags": [["d", "<tenant_id>"], ["tenant", "<tenant_id>"]],
-  "content": "{\"tenant\":\"<tenant_id>\",\"reason\":\"Situation resolved\",\"authorized_by\":\"<owner_npub>\"}",
-  "sig": "<schnorr_sig_hex_owner>"
+  "tags": [
+    ["d", "<tenant_id>"],
+    ["tenant", "<tenant_id>"]
+  ],
+  "content": "{\"tenant\":\"<tenant_id>\",\"reason\":\"<reason>\",\"authorized_by\":\"<owner_pubkey_hex>\"}",
+  "sig": "<schnorr_sig_hex_of_owner>"
 }
 ```
 
@@ -635,61 +655,66 @@ Discovery query (public relay): `{"kinds": [34000], "#t": ["nodus-dw"]}`
 
 | Field | Value |
 |-------|-------|
-| **Name** | `nodus:kyc-corp-claim` |
-| **Layer** | Governance Layer — Legal Identity |
+| **Layer** | Governance — Legal Identity |
 | **Publisher** | Owner |
 
-**Description:** Link between a legal entity (company) and its cryptographic Nostr identity. Published to the public relay to be verifiable by third parties without contacting any central authority.
+**Description:** A cryptographic link between a legal entity and its Nostr identity. Published to the public relay so that any third party — counterparty, auditor, regulator — can verify the legal identity of a Worker's operator without consulting any private system.
 
 ```json
 {
-  "id": "<sha256>",
+  "kind": 34010,
   "pubkey": "<owner_pubkey_hex>",
   "created_at": 1714000200,
-  "kind": 34010,
   "tags": [
     ["d", "kyc-<tenant_id>"],
     ["t", "nodus-kyc"],
-    ["legal_entity", "Example Corp SL"],
-    ["jurisdiction", "ES"],
-    ["registration", "B12345678"],
+    ["legal_entity", "<company_name>"],
+    ["jurisdiction", "<iso_3166_alpha2>"],
+    ["registration", "<company_registration_number>"],
     ["p", "<verifier_pubkey_hex>", "", "verifier"]
   ],
-  "content": "{\"legal_entity\":\"Example Corp SL\",\"jurisdiction\":\"ES\",\"registration\":\"B12345678\",\"nodus_version\":\"1.0\"}",
-  "sig": "<schnorr_sig_hex_owner>"
+  "content": "{\"legal_entity\":\"<company_name>\",\"jurisdiction\":\"<country_code>\",\"registration\":\"<registration_number>\",\"tenant_id\":\"<tenant_id>\",\"nodus_version\":\"1.0\"}",
+  "sig": "<schnorr_sig_hex_of_owner>"
 }
 ```
+
+**Verifiable contract hash:**
+```
+contract_hash = SHA-256(mandate_event_id + ":" + org_relation_event_id + ":" + kyc_claim_event_id)
+```
+
+This hash can be computed from public relay data by any party and used to verify that the mandate, the ownership relationship, and the legal entity claim are all consistent and intact.
 
 ---
 
 ## Visual Summary
 
 ```
-Session Layer (NIP-16 replaceable)
-  10001  MESSAGE_USER        Human → DW
-  10002  RESPONSE_DW         DW → Human     (final accumulated)
-  10003  HITL_REQUEST        DW → Human     (pending approval)
-  10004  HITL_RESPONSE       Human → DW     (CRYPTOGRAPHICALLY SIGNED)
-  10005  RESPONSE_AGENT      Agent → Agent  (synchronous A2A)
-  10006  STREAMING_CHUNK     DW → Human     (real-time chunk)
-  10010  A2A_REQUEST         DW A → DW B    (Nostr-native)
-  10011  A2A_RESPONSE        DW B → DW A
-  10012  A2A_STREAM          DW B → DW A    (chunk)
-  10013  A2A_ERROR           DW B → DW A    (error)
-  10020  INBOX_ITEM          DW → Human     (async HITL)
-  10021  INBOX_RESOLVED      Human → DW     (resolution)
+Session Layer (NIP-16)
+  10001  MESSAGE_USER        Initiator → Worker    (task request)
+  10002  RESPONSE_DW         Worker → Initiator    (final response)
+  10003  HITL_REQUEST        Worker → Owner        (approval required)
+  10004  HITL_RESPONSE       Owner → Worker        (CRYPTOGRAPHICALLY SIGNED)
+  10005  RESPONSE_AGENT      Agent → Agent         (internal A2A, HTTP transport)
+  10006  STREAMING_CHUNK     Worker → Initiator    (real-time chunk)
+  10010  A2A_REQUEST         Worker A → Worker B   (Nostr-native delegation)
+  10011  A2A_RESPONSE        Worker B → Worker A   (delegation result)
+  10012  A2A_STREAM          Worker B → Worker A   (streaming chunk)
+  10013  A2A_ERROR           Worker B → Worker A   (delegation error)
+  10020  INBOX_ITEM          Worker → Owner        (async HITL request)
+  10021  INBOX_RESOLVED      Owner → (subscribers) (async HITL resolution)
 
 Governance Layer (NIP-33 parameterized replaceable)
-  34000  nodus:dw-profile       DW/Human identity at the relay
-  34001  nodus:org-relation     Owner→DW relationship (hierarchy + federation)
-  34002  nodus:policy           Owner-signed mandate (IMMUTABLE)
-  34003  nodus:audit-event      Immutable append-only audit
-  34004  nodus:mcp-profile      MCP Gateway profile
-  34005  nodus:emergency-stop   Halt all tenant DWs (<30 seconds)
-  34006  nodus:emergency-resume Resume DWs
-  34010  nodus:kyc-corp-claim   Verifiable legal identity
+  34000  nodus:dw-profile        Worker or human identity at the relay
+  34001  nodus:org-relation      Owner→Worker relationship (signed by Owner)
+  34002  nodus:policy            Owner-signed mandate         [IMMUTABLE]
+  34003  nodus:audit-event       Append-only action record    [IMMUTABLE]
+  34004  nodus:mcp-profile       MCP Gateway identity
+  34005  nodus:emergency-stop    Halt all tenant Workers      [Owner only]
+  34006  nodus:emergency-resume  Resume Workers after halt    [Owner only]
+  34010  nodus:kyc-corp-claim    Verifiable legal entity link
 ```
 
 ---
 
-*Nodus Protocol Working Group · nodus.social · CC BY 4.0*
+*Nodus Protocol Working Group · CC BY 4.0*
