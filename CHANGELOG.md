@@ -4,6 +4,23 @@ All notable changes to the Nodus Protocol specification are documented here.
 
 ---
 
+## [v1.0.1] — April 2026 — Spec accuracy fixes
+
+### Changes
+
+**SPEC.md §5.6 Policy Relay — two additions:**
+- `relay_proof` tag: cryptographic proof that a DW event passed through the Policy Relay. Format: `["relay_proof", sha256(event_id + policy_relay_pubkey_hex)]`. REQUIRED on all events signed in Policy Relay mode. Relays MAY enforce rejection of DW events missing a valid `relay_proof` in enforcement mode.
+- Emergency stop relay enforcement: formal description of the relay daemon architecture (subscribe to kind:34005/34006, maintain durable per-tenant cache, write-policy plugin reads cache per event).
+
+**KINDS.md:**
+- kind:10002 `relay_proof` tag documented as a conditional tag (REQUIRED in Policy Relay mode)
+- kind:34003 `d` tag formula corrected: `SHA-256(worker_pubkey_hex + ":" + session_id + ":" + timestamp_ms)` — components joined with `:` separators (aligned with reference implementation)
+
+**FLOWS.md §Flow 2 — Constitutional HITL:**
+- Clarified placeholder kind:10002 behaviour: implementations SHOULD publish an immediate kind:10002 placeholder after kind:10003 to unblock bridges and frontends. The final kind:10002 with the actual result is published after the Owner approves and execution is resumed.
+
+---
+
 ## [v1.0] — April 2026 — First Public Release
 
 ### Summary

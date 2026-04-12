@@ -496,14 +496,48 @@ The Policy Relay exposes an internal WebSocket endpoint. The DW sends unsigned e
 
 > Technical basis: NIP-46 (Nostr Connect / nsecbunker) — adapted for enterprise DWs with mandate enforcement semantics.
 
-#### Relay enforcement
+#### `relay_proof` tag — Policy Relay attestation
+
+When the Policy Relay signs a DW event, it MUST append a `relay_proof` tag to the event. This tag is the cryptographic proof that the event passed through the Policy Relay — without it, any observer (or relay write-policy plugin) can detect that a DW event was signed directly, bypassing the custodial key mechanism.
+
+**Tag format:**
+```
+["relay_proof", "<sha256(event_id_hex + policy_relay_pubkey_hex)>"]
+```
+
+Where:
+- `event_id_hex` is the lowercase hex SHA-256 of the serialised event (the Nostr event `id` field)
+- `policy_relay_pubkey_hex` is the lowercase hex pubkey of the Policy Relay service
+- Both are concatenated without separator before hashing
+
+**Verification (any third party):**
+1. Extract `relay_proof` tag value from the event
+2. Compute `sha256(event.id + policy_relay_pubkey_hex)`
+3. Compare — if mismatch or tag absent, the event did not pass through a known Policy Relay
+
+This tag is **REQUIRED on all events signed in Policy Relay mode**. A relay write-policy plugin MAY reject DW events that lack a valid `relay_proof` when operating in enforcement mode (`NODUS_REQUIRE_RELAY_PROOF=true`); in observational mode it SHOULD log but MUST accept.
+
+#### Emergency stop — Relay enforcement
+
+Relays enforcing emergency controls MUST maintain per-tenant emergency state derived from kind:34005 and kind:34006 events. The recommended architecture is a daemon that:
+
+1. Subscribes to `{kinds: [34005, 34006], "#tenant": ["<tenant_id>"]}` on the relay
+2. Maintains a durable cache: `{active: bool, since: unix_ts, event_id: string}` per tenant
+3. On each new kind:34005 — marks tenant as halted if `event.created_at ≥ current_since`
+4. On each new kind:34006 — clears halt if `event.created_at > current_since`
+5. Exposes the cache to the write-policy plugin for per-event decisions
+
+The daemon MUST reconnect automatically on relay disconnection. The cache MUST be persisted to disk so that relay restarts do not lose emergency state.
+
+#### Relay write-policy rules
 
 A conformant relay SHOULD implement write policies enforcing governance rules at write time:
 
 - Relays MUST reject DELETE or UPDATE on kind:34002 and kind:34003
 - Entities with `entity_type: "digital_worker"` MUST NOT sign kinds 34002, 34005
-- Relay SHOULD verify NIP-26 delegation tags in DW events
-- If kind:34005 is active for a tenant, the relay MUST reject all DW events for that tenant (except owner's kind:34006)
+- Relays SHOULD verify NIP-26 delegation tags in DW events
+- If kind:34005 is active for a tenant, the relay MUST reject all DW events for that tenant (except the owner's kind:34006)
+- When operating in Policy Relay enforcement mode, the relay SHOULD reject DW events missing a valid `relay_proof` tag
 
 ---
 
