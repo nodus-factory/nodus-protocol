@@ -253,7 +253,7 @@ The DW MUST poll for emergency signals at least every 30 seconds:
 ```json
 ["REQ", "<sub_id>", {
   "kinds": [34005, 34006],
-  "#tenant": ["<tenant_id>"],
+  "#d": ["<tenant_id>"],
   "limit": 10
 }]
 ```

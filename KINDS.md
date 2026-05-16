@@ -624,7 +624,7 @@ All Governance Layer kinds are **parameterized replaceable events** (NIP-33). Th
 
 **Emergency polling query:**
 ```json
-{"kinds": [34005, 34006], "#tenant": ["<tenant_id>"], "limit": 10}
+{"kinds": [34005, 34006], "#d": ["<tenant_id>"], "limit": 10}
 ```
 
 **Active condition:** `latest_stop_at > 0 AND latest_stop_at > latest_resume_at`

@@ -213,27 +213,45 @@ Worker / Cron              Relay                   Owner (inbox)
 The Owner publishes a halt signal. All Workers belonging to the tenant detect it within 30 seconds and discard all incoming requests until a resume signal is received.
 
 ```
-Owner                    Relay                   Worker(s)
-  │                        │                        │
-  │  EVENT kind:34005       │                        │ [polling every 30s]
-  │  EMERGENCY_STOP         │                        │ REQ kinds:[34005,34006]
-  │  tags: [d=tenant_id,    │                        │ #tenant=[tenant_id]
-  │   tenant=tenant_id]     │                        │
-  ├──────────────────────►│                        │
-  │                        ├───────────────────────►│
-  │                        │  kind:34005             │ latest_stop_at > latest_resume_at
-  │                        │                        │ → EMERGENCY ACTIVE
-  │                        │                        │ → discard all kind:10001
-  │                        │                        │
-  │ [... time passes ...]  │                        │
-  │                        │                        │
-  │  EVENT kind:34006       │                        │
-  │  EMERGENCY_RESUME       │                        │
-  ├──────────────────────►│                        │
-  │                        ├───────────────────────►│
-  │                        │  kind:34006             │ latest_resume_at > latest_stop_at
-  │                        │                        │ → EMERGENCY CLEARED
-  │                        │                        │ → resume normal operation
+Admin (Backoffice)        Relay                      DW (polling every 30s)
+       │                    │                              │
+       │  POST /api/emergency/stop                        │
+       │  { reason: "Suspicious activity" }               │
+       │                    │                              │
+       │  publishEmergencyStop()                          │
+       │  kind:34005         │                              │
+       │  tags: [d=tenant,  │                              │
+       │    tenant=tenant_id]│                             │
+       ├───────────────────►│                              │
+       │                    │                              │
+       │  { event_id, ts }  │                              │
+       │◄───────────────────┤                              │
+       │                    │  (asyncio polling task)      │
+       │                    │                              │ _emergency_polling_loop()
+       │                    │                              │ → asyncio.sleep(30)
+       │                    │                              │ → _query_emergency_stop(tenant_id)
+       │                    │◄─────────────────────────────┤
+       │                    │  REQ {kinds:[34005,34006],   │
+       │                    │       #d:[tenant_id]}   │
+       │                    ├──────────────────────────────►
+       │                    │  EVENT kind:34005            │
+       │                    ├──────────────────────────────►
+       │                    │  EOSE                        │
+       │                    ├──────────────────────────────►
+       │                    │                              │ self._emergency_active = True
+       │                    │                              │
+       │                    │     [new kind:10001 arrives] │
+       │                    ├─────────────────────────────►│ _handle_message()
+       │                    │                              │ → if self._emergency_active: return
+       │                    │                              │   (message discarded)
+       │                    │                              │
+       │  [Admin resumes]           │                              │
+       │  POST /api/emergency/resume                       │
+       │  kind:34006         │                              │
+       ├───────────────────►│                              │
+       │                    │  (next polling cycle)        │
+       │                    │                              │ latest_resume_at > latest_stop_at
+       │                    │                              │ self._emergency_active = False
 ```
 
 **Timing requirement:** Workers MUST detect kind:34005 and halt within **30 seconds** of publication.
