@@ -268,6 +268,9 @@ NIP-16 replaceable events. The DW MUST use a `since` filter to avoid processing 
 | `10004` | `HITL_RESPONSE` | Human | Cryptographically signed human decision |
 | `10005` | `RESPONSE_AGENT` | Agent | Agent-to-agent (synchronous transport) |
 | `10006` | `STREAMING_CHUNK` | DW | Real-time streaming chunk |
+| `10007` | `BUBBLE_EVENT` | DW / Cron | Structured async activity inside a bubble |
+| `10008` | `BUBBLE_STATUS` | DW | Bubble state (`running`, `waiting`, `completed`, `failed`) |
+| `10009` | `BUBBLE_FINAL` | DW | Canonical bubble closure |
 | `10010` | `A2A_REQUEST` | DW | DW-to-DW task request (Nostr-native) |
 | `10011` | `A2A_RESPONSE` | DW | DW-to-DW task response |
 | `10012` | `A2A_STREAM` | DW | DW-to-DW streaming chunk |

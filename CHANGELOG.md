@@ -4,6 +4,16 @@ All notable changes to the Nodus Protocol specification are documented here.
 
 ---
 
+## [v1.1.0-draft] — May 2026 — Response Bubbles (Session Layer)
+
+### Added
+
+- **Kinds 10007–10009:** `BUBBLE_EVENT`, `BUBBLE_STATUS`, `BUBBLE_FINAL` for async multi-delivery over Nostr ([docs/response-bubbles/KINDS.md](docs/response-bubbles/KINDS.md)).
+- **Tag `bubble`:** REQUIRED on kinds 10001 (initiator), 10002, 10003, 10006, 10007, 10008, 10009 ([docs/response-bubbles/SESSION_TAGS.md](docs/response-bubbles/SESSION_TAGS.md)).
+- Canonical bubble closure via kind:10009; kind:10002 + `bubble_done=true` retained for compatibility only.
+
+---
+
 ## [v1.0.1] — April 2026 — Spec accuracy fixes
 
 ### Changes
