@@ -776,6 +776,43 @@ A Worker is running its approved configuration when the latest 34008 references 
 
 ---
 
+### kind:34009 — nodus:modelbook:state-root
+
+| Field | Value |
+|-------|-------|
+| **Layer** | Governance — Verified State |
+| **Publisher** | Memorium (Model Book compiler) |
+
+**Description:** The signed state root of a tenant's Model Book. After every compiler or HITL commit, Memorium signs the canonical SHA-256 state root of the new version with its own key and publishes it. Parameterized replaceable on the tenant id — the latest event per `d` tag is THE current corporate state. Any third party can verify that the M-state a Worker received matches the published corporate state root without trusting the transport.
+
+**Canonical root** (same computation as `modelbook_versions.state_root`):
+```
+state_root = "sha256:" + SHA-256( stable_json({modelbook_version, tenant_id, regions_sorted_with_sorted_claims}) )
+```
+
+```json
+{
+  "kind": 34009,
+  "pubkey": "<memorium_pubkey_hex>",
+  "tags": [
+    ["d", "<tenant_id>"],
+    ["version", "<version_num>"],
+    ["root", "sha256:<hex>"]
+  ],
+  "content": "{\"schema\":\"nodus.modelbook.state_root.v1\",\"tenant_id\":\"<tenant_id>\",\"version_num\":5,\"label\":\"compiler/v5\",\"state_root\":\"sha256:<hex>\",\"compiler_version\":\"modelbook-compiler/v1\",\"message\":\"Compiler pass: 2 claim(s) applied, 1 conflict(s) held for HITL\",\"published_at\":1751970200}",
+  "sig": "<schnorr_sig_hex_of_memorium>"
+}
+```
+
+**Verification query (any third party):**
+```json
+{"kinds": [34009], "#d": ["<tenant_id>"], "limit": 1}
+```
+
+The Model Book state a Worker acts on is authentic when the `state_root` in its context envelope equals the `root` of the latest kind:34009 for the tenant.
+
+---
+
 ### kind:34010 — nodus:kyc-corp-claim
 
 | Field | Value |
@@ -842,6 +879,7 @@ Governance Layer (NIP-33 parameterized replaceable)
   34006  nodus:emergency-resume  Resume Workers after halt    [Owner only]
   34007  nodus:workspace-manifest    Approved DW identity-file hashes [Backoffice only]
   34008  nodus:workspace-attestation Worker self-attestation of loaded files
+  34009  nodus:modelbook:state-root  Signed Model Book state root [Memorium only]
   34010  nodus:kyc-corp-claim    Verifiable legal entity link
 ```
 
