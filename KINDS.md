@@ -712,6 +712,70 @@ All Governance Layer kinds are **parameterized replaceable events** (NIP-33). Th
 
 ---
 
+### kind:34007 — nodus:workspace-manifest
+
+| Field | Value |
+|-------|-------|
+| **Layer** | Governance — Verified Execution |
+| **Publisher** | Backoffice (Owner-operated) |
+
+**Description:** The approved identity-file manifest of a Worker: for each file that shapes the Worker's prompt (SOUL.md, AGENTS.md, NODUS_OS_CONTEXT.md, USER.md…), the SHA-256 of its approved content, plus a canonical `workspace_root`. Parameterized replaceable on the Worker's pubkey — the latest event per `d` tag is THE manifest. Workers compare their loaded files against it and answer with kind:34008.
+
+**Canonical root:**
+```
+workspace_root = SHA-256( join("\n", sorted_by_path("<path>:<sha256(content)>")) )
+```
+
+```json
+{
+  "kind": 34007,
+  "pubkey": "<backoffice_pubkey_hex>",
+  "tags": [
+    ["d", "<worker_pubkey_hex>"],
+    ["p", "<worker_pubkey_hex>"]
+  ],
+  "content": "{\"schema\":\"nodus.workspace.manifest.v1\",\"files\":{\"SOUL.md\":\"<sha256_hex>\",\"AGENTS.md\":\"<sha256_hex>\"},\"workspace_root\":\"<sha256_hex>\",\"note\":null,\"initiated_by\":\"<user_id>\",\"published_at\":1751970000}",
+  "sig": "<schnorr_sig_hex_of_backoffice>"
+}
+```
+
+**Only the Backoffice/Owner identity MAY publish this event.** Workers MUST verify `pubkey` against their configured Backoffice pubkey before trusting a manifest.
+
+---
+
+### kind:34008 — nodus:workspace-attestation
+
+| Field | Value |
+|-------|-------|
+| **Layer** | Governance — Verified Execution |
+| **Publisher** | Worker |
+
+**Description:** The Worker's cryptographic self-attestation: the SHA-256 hashes of the identity files it ACTUALLY loaded into its prompt compiler (not what merely sits on disk), the computed `workspace_root`, and the comparison against the latest kind:34007 manifest. Signed with the Worker's own key. Published at startup and whenever the loaded identity content changes.
+
+**Status values:** `match` (roots equal) · `mismatch` (drift detected) · `no_manifest` (no 34007 published yet) · `missing_files` (SOUL.md could not be loaded).
+
+```json
+{
+  "kind": 34008,
+  "pubkey": "<worker_pubkey_hex>",
+  "tags": [
+    ["d", "<worker_pubkey_hex>"],
+    ["manifest", "<kind_34007_event_id>"]
+  ],
+  "content": "{\"computed_root\":\"<sha256_hex>\",\"manifest_root\":\"<sha256_hex|null>\",\"status\":\"match\",\"files\":{\"SOUL.md\":\"<sha256_hex>\"},\"missing\":[],\"worker_version\":\"nodus-iris-worker@0.1.0\",\"attested_at\":1751970100}",
+  "sig": "<schnorr_sig_hex_of_worker>"
+}
+```
+
+**Verification query (any third party):**
+```json
+{"kinds": [34007, 34008], "#d": ["<worker_pubkey_hex>"], "limit": 10}
+```
+
+A Worker is running its approved configuration when the latest 34008 references the latest 34007 and `computed_root == manifest_root`. In the current phase this is **observe-only**: a `mismatch` is reported and audited but does not block execution.
+
+---
+
 ### kind:34010 — nodus:kyc-corp-claim
 
 | Field | Value |
@@ -776,6 +840,8 @@ Governance Layer (NIP-33 parameterized replaceable)
   34004  nodus:mcp-profile       MCP Gateway identity
   34005  nodus:emergency-stop    Halt all tenant Workers      [Owner only]
   34006  nodus:emergency-resume  Resume Workers after halt    [Owner only]
+  34007  nodus:workspace-manifest    Approved DW identity-file hashes [Backoffice only]
+  34008  nodus:workspace-attestation Worker self-attestation of loaded files
   34010  nodus:kyc-corp-claim    Verifiable legal entity link
 ```
 
