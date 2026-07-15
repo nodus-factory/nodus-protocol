@@ -300,10 +300,11 @@ The Policy Relay holds DW private keys and enforces mandates at signing time. Th
 DW process (no nsec)
     │
     │  WebSocket connection to Policy Relay
-    │  {"method": "sign_event", "params": {"event": <unsigned_event>, "dw_pubkey": "<hex>"}}
+    │  {"method": "sign_event", "params": {"event": <unsigned_event>,
+    │   "dw_pubkey": "<hex>", "secret_path": "/digital-workers/<uuid>/identity/g0001"}}
     ▼
 Policy Relay (isolated process)
-    ├── Holds DW nsec (loaded from secure storage at startup)
+    ├── Loads the requested DW nsec from secure storage on first use
     ├── Fetches DW mandate (kind:34002) from relay
     ├── Validates: is the action permitted by the mandate?
     ├── If YES: signs event with DW nsec → returns {"result": <signed_event>}
@@ -319,9 +320,41 @@ Policy Relay (isolated process)
 
 **Key storage options (in order of security):**
 1. Hardware Security Module (HSM)
-2. Secrets management service (Vault, AWS Secrets Manager, etc.)
+2. Secrets management service (Infisical, Vault, AWS Secrets Manager, etc.)
 3. Encrypted file with key derived from an environment variable
 4. Environment variable (minimum viable, not recommended for sensitive deployments)
+
+### 12.1 Nodus Infisical layout
+
+For every newly provisioned DW, create a folder rooted at its immutable UUID:
+
+```text
+/digital-workers/<worker_uuid>/meta
+/digital-workers/<worker_uuid>/identity/g0001
+/digital-workers/<worker_uuid>/runtime
+```
+
+Store `NOSTR_NSEC` and its paired `NOSTR_NPUB` in the identity generation.
+Persist the `npub` additionally in Backoffice and publish it through Nostr. Do
+not persist the `nsec` in Backoffice, deployment state, Kubernetes manifests,
+container environment, browser storage or the DW filesystem. The Policy Relay
+reads the active generation with a least-privilege Infisical machine identity
+and retains the private key in memory only.
+
+Deployment APIs accept only secret references and metadata. Logs and events
+may include the worker UUID, secret path, generation and `npub`, but never a
+secret value or access token. An absent custody mode means `legacy`; migration
+of an existing DW is a separate two-phase operation with verification and
+rollback, not part of ordinary reconciliation.
+
+The Policy Relay may preload a non-secret map from DW public keys to Infisical
+references or load a deterministic identity-generation path on first use. In
+dynamic mode the DW sends `secret_path` alongside `dw_pubkey`; the relay reads
+that path with its own least-privilege machine token, verifies that
+`NOSTR_NSEC` derives exactly to the requested public key and only then caches
+the key in memory. The relay may start with an empty cache, but readiness for a
+specific DW MUST fail closed if the token, path or key-pair match is invalid.
+DW-to-relay connections MUST use an authenticated service channel.
 
 ---
 

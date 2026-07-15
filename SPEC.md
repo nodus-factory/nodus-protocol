@@ -501,6 +501,47 @@ The Policy Relay exposes an internal WebSocket endpoint. The DW sends unsigned e
 
 > Technical basis: NIP-46 (Nostr Connect / nsecbunker) — adapted for enterprise DWs with mandate enforcement semantics.
 
+#### Custodial key layout for newly provisioned DWs
+
+New production DWs SHOULD use `policy_relay_v2`. Their key material MUST be
+centralised in the tenant's Infisical project under one stable folder per DW:
+
+```text
+/digital-workers/<worker_uuid>/
+├── meta/
+├── identity/g0001/
+└── runtime/
+```
+
+- `identity/g0001/NOSTR_NSEC` is the only persistent copy of the DW private
+  key. Only the Policy Relay machine identity may read it.
+- `identity/g0001/NOSTR_NPUB` mirrors the public identity for recovery and
+  integrity checks. The canonical public copy remains the Backoffice record
+  and the Nostr profile.
+- `meta/` contains non-secret identity metadata and references such as tenant,
+  worker UUID, active generation, custody mode and Policy Relay identifier.
+- `runtime/` contains runtime credentials such as gateway, router, provider or
+  infrastructure credentials. Deployments MUST pass references to these
+  values, never raw secret values.
+
+The Policy Relay MUST load `NOSTR_NSEC` into memory only, MUST NOT write it to
+local disk, and MUST NOT return it to the DW process. A key rotation creates a
+new immutable generation (`g0002`, `g0003`, ...); the active generation is
+switched only after its `npub` has been verified and rollback remains possible.
+The signing channel MUST authenticate the DW runtime as a service and readiness
+MUST be evaluated for the requested DW public key, not only for the relay
+process as a whole.
+
+In dynamic custody mode, `health` and `sign_event` requests MUST include the
+non-secret active-generation `secret_path`. The relay MUST validate the path,
+load that identity from Infisical on first use, derive its public key and compare
+it to the requested `dw_pubkey` before caching the `nsec` in memory. A mismatch
+MUST fail closed. Static reference maps remain supported for legacy deployments.
+
+Existing DWs remain in legacy custody until an explicit, audited migration.
+Implementations MUST interpret an absent custody mode as `legacy` and MUST NOT
+move, delete or rotate an existing key as a side effect of a normal deploy.
+
 #### `relay_proof` tag — Policy Relay attestation
 
 When the Policy Relay signs a DW event, it MUST append a `relay_proof` tag to the event. This tag is the cryptographic proof that the event passed through the Policy Relay — without it, any observer (or relay write-policy plugin) can detect that a DW event was signed directly, bypassing the custodial key mechanism.
