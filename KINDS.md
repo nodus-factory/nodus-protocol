@@ -131,17 +131,24 @@ The `relay_proof` tag value is `sha256(event.id + policy_relay_pubkey_hex)`. Its
 ```
 
 **Required tags:** `p`, `session`, `request`, `bubble`
+**Optional tags:** `action` (catalog type id), `hint` (short owner-facing prompt)
 
 **Content JSON fields:**
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `event_id` | `string` | Unique HITL identifier (`hitl_<12hex>`) |
-| `action` | `string` | Tool or function name requiring approval |
+| `action` | `string` | Catalog type id (`approve`, `choice`, `form`, …) or tool name |
+| `type` | `string` | Same catalog id as `action` when published from the HITL catalog |
 | `description` | `string` | Human-readable description of the pending action |
+| `hint` | `string` | Short prompt shown to the owner |
 | `input_type` | `"text" \| "choice"` | Expected response format |
-| `choices` | `string[] \| null` | Available options when `input_type = "choice"` |
+| `choices` | `string[] \| object[] \| null` | Available options when `input_type = "choice"` |
+| `options` | `object[]` | Structured choice options (`{id,label}`) |
+| `field` / `fields` | `object` / `object[]` | Form inputs when the catalog type is `form` |
 | `urgency` | `"normal" \| "high"` | Urgency level |
+
+`action` / `type` is a **catalog type id**. Unknown ids are valid and MUST still be published; clients that do not recognize them MUST fall back to approve/reject. Additional JSON fields are allowed and MUST be ignored by clients that do not understand them. New catalog types are additive: they do not require a new kind.
 
 ---
 
